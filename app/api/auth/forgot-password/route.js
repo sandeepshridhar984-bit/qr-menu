@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPasswordResetToken } from "@/lib/auth";
 import { sendPasswordResetEmail, isConfigured } from "@/lib/email";
+import { getBaseUrl } from "@/lib/baseUrl";
 
 export async function POST(request) {
   const { email } = await request.json();
@@ -20,7 +21,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, message: genericMessage });
   }
 
-  const origin = request.headers.get("origin") || new URL(request.url).origin;
+  const origin = getBaseUrl(request);
   const resetUrl = `${origin}/reset-password?token=${result.token}`;
 
   if (isConfigured()) {
