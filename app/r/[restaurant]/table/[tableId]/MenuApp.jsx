@@ -874,7 +874,7 @@ function CheckoutScreen({ currency, instagramUrl, subtotal, discount, discountLa
 
         {instagramUrl && (
           
-            href={instagramUrl}
+           <a href={instagramUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 border border-ink/10 bg-white rounded-card p-3.5 mb-5 text-sm font-semibold text-ink hover:border-chili/40 transition-colors"
