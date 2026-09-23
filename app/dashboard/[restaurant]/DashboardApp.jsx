@@ -1320,6 +1320,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
   const [logoPreview, setLogoPreview] = useState(restaurant.logo_image_url || null);
   const [coverPreview, setCoverPreview] = useState(restaurant.cover_image_url || null);
   const [tagline, setTagline] = useState(restaurant.tagline || "");
+  const [instagramUrl, setInstagramUrl] = useState(restaurant.instagram_url || "");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState("");
@@ -1371,6 +1372,25 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
       setSavingProfile(false);
     }
   }
+  async function saveInstagram() {
+    setSavingProfile(true);
+    setProfileError("");
+    try {
+      const res = await fetch(`/api/admin/${restaurant.slug}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ instagram_url: instagramUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save.");
+      onRestaurantUpdate?.(data.restaurant);
+      setProfileSaved(true);
+      setReloadKey((k) => k + 1);
+      setTimeout(() => setProfileSaved(false), 2000);
+    } catch (e) {
+      setProfileError(e.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   const profileSection = (
     <div className="bg-white border border-ink/10 rounded-2xl p-5 mb-5 max-w-2xl">
@@ -1409,8 +1429,29 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
             placeholder="Discover today's delicious specials."
             className="flex-1 border border-ink/15 rounded-card px-3.5 py-2.5 text-sm bg-white"
           />
-          <button
+            <button
             onClick={saveTagline}
+            disabled={savingProfile}
+            className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+      <div className="mt-4">
+        <label className="block text-xs font-semibold text-ink mb-1.5">Instagram page link (optional)</label>
+        <p className="text-xs text-clay mb-1.5">
+          Shown to customers at checkout with a "Follow us" button, before they place their order.
+        </p>
+        <div className="flex gap-2">
+          <input
+            value={instagramUrl}
+            onChange={(e) => setInstagramUrl(e.target.value)}
+            placeholder="https://instagram.com/yourrestaurant"
+            className="flex-1 border border-ink/15 rounded-card px-3.5 py-2.5 text-sm bg-white"
+          />
+          <button
+            onClick={saveInstagram}
             disabled={savingProfile}
             className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
