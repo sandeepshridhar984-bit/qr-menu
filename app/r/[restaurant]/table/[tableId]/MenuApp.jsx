@@ -5,7 +5,7 @@ import Monogram from "@/components/Monogram";
 import {
   Volume2, ArrowRight, Search, Sparkles, ShoppingCart, Minus, Plus,
   Star, Tag, Video, CheckCheck, Banknote, QrCode, CheckCircle2,
-  ChevronLeft, X, UtensilsCrossed, Armchair, ChefHat,
+  ChevronLeft, X, UtensilsCrossed, Armchair, ChefHat, Instagram,
 } from "lucide-react";
 
 const FILTERS = [
@@ -264,8 +264,9 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
       )}
 
       {view === "checkout" && (
-        <CheckoutScreen
+          <CheckoutScreen
           currency={restaurant.currency}
+          instagramUrl={restaurant.instagram_url}
           subtotal={subtotal}
           discount={discount}
           discountLabel={campaignFeedback ? "Campaign discount" : selectedOffer ? "Offer discount" : null}
@@ -849,7 +850,7 @@ function Row({ label, value, bold }) {
 
 // ---------- Checkout ----------
 
-function CheckoutScreen({ currency, subtotal, discount, discountLabel, taxBreakdown, platformFee, total, payMethod, setPayMethod, payment, paidClicked, setPaidClicked, placing, onBack, onPlaceOrder }) {
+function CheckoutScreen({ currency, instagramUrl, subtotal, discount, discountLabel, taxBreakdown, platformFee, total, payMethod, setPayMethod, payment, paidClicked, setPaidClicked, placing, onBack, onPlaceOrder }) {
   const canPlace = payMethod === "cash" || (payMethod === "online_upi" && paidClicked);
 
   return (
@@ -870,6 +871,18 @@ function CheckoutScreen({ currency, subtotal, discount, discountLabel, taxBreakd
           <div className="border-t border-ink/10 my-2" />
           <Row label="Total to pay" value={money(total, currency)} bold />
         </div>
+
+        {instagramUrl && (
+          
+            href={instagramUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 border border-ink/10 bg-white rounded-card p-3.5 mb-5 text-sm font-semibold text-ink hover:border-chili/40 transition-colors"
+          >
+            <Instagram size={18} className="text-chili" />
+            Follow us on Instagram
+          </a>
+        )}
 
         <p className="text-sm font-semibold text-ink mb-2">How would you like to pay?</p>
         <div className="grid gap-2.5">
@@ -1041,9 +1054,17 @@ function CampaignModal({ campaign, onClose, onDone }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200MB
+
   function handleVideo(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_VIDEO_BYTES) {
+      setError(`That video is too large (max 200MB). Please choose a shorter clip or lower quality.`);
+      e.target.value = "";
+      return;
+    }
+    setError("");
     setVideoPreviewName(file.name);
     const reader = new FileReader();
     reader.onload = () => setVideoFile(reader.result);
@@ -1063,7 +1084,7 @@ function CampaignModal({ campaign, onClose, onDone }) {
         const upRes = await fetch("/api/uploads", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dataUrl: videoFile, maxBytes: 30 * 1024 * 1024 }),
+          body: JSON.stringify({ dataUrl: videoFile, maxBytes: MAX_VIDEO_BYTES }),
         });
         const upData = await upRes.json();
         if (!upRes.ok) throw new Error(upData.error);
