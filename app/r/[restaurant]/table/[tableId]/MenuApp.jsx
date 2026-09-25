@@ -154,6 +154,7 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           table={table}
           categories={categories}
           items={filteredItems}
+          allItems={items}
           newItems={newItems}
           allItemsCount={items.length}
           query={query}
@@ -347,7 +348,7 @@ function WelcomeScreen({ restaurant, table, onEnter }) {
 // ---------- Menu ----------
 
 function MenuScreen({
-  restaurant, table, categories, items, newItems, allItemsCount, query, setQuery,
+  restaurant, table, categories, items, allItems, newItems, allItemsCount, query, setQuery,
   filters, toggleFilter, activeCategory, setActiveCategory, offers,
   onOpenItem, onOpenAssistant, cartCount, cartTotal, onOpenCart,
 }) {
@@ -392,16 +393,29 @@ function MenuScreen({
         </div>
 
         {!query && filters.length === 0 && (
-          <div className="flex gap-1 overflow-x-auto no-scrollbar px-4 pb-3">
+          <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-3 pt-1">
             {categories.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setActiveCategory(c.id)}
-                className={`whitespace-nowrap text-sm font-medium px-3.5 py-1.5 rounded-full transition-colors ${
-                  activeCategory === c.id ? "bg-ink text-paper" : "text-ink/60 hover:bg-ink/5"
-                }`}
+                className="flex flex-col items-center gap-1.5 flex-shrink-0 w-16"
               >
-                {c.name}
+                <span
+                  className={`w-14 h-14 rounded-full flex items-center justify-center text-base font-bold border-2 transition-all ${
+                    activeCategory === c.id
+                      ? "bg-herb border-herb text-white shadow-md scale-105"
+                      : "bg-white border-ink/10 text-ink/60"
+                  }`}
+                >
+                  {c.name.charAt(0).toUpperCase()}
+                </span>
+                <span
+                  className={`text-[10.5px] font-semibold text-center leading-tight truncate w-full ${
+                    activeCategory === c.id ? "text-ink" : "text-ink/45"
+                  }`}
+                >
+                  {c.name}
+                </span>
               </button>
             ))}
           </div>
@@ -409,6 +423,10 @@ function MenuScreen({
       </div>
 
       {restaurant.banner_messages?.length > 0 && <ScrollingBanner messages={restaurant.banner_messages} />}
+
+      {!query && filters.length === 0 && (
+        <HeroCarousel items={allItems} currency={restaurant.currency} onOpenItem={onOpenItem} />
+      )}
 
       {offers.length > 0 && (
         <div className="px-4 pt-4">
@@ -483,6 +501,76 @@ function MenuScreen({
   );
 }
 
+// A big rotating "featured dish" panel at the top of the menu -- product
+// sitting on a soft colored blob with its name/price below and dots to
+// page through a handful of picks. Tapping it opens the same item detail
+// sheet as tapping a regular card.
+function HeroCarousel({ items, currency, onOpenItem }) {
+  const picks = useMemo(() => {
+    const popular = items.filter((it) => it.is_popular && it.image_url);
+    const withImage = items.filter((it) => it.image_url);
+    const pool = popular.length ? popular : withImage.length ? withImage : items;
+    return pool.slice(0, 6);
+  }, [items]);
+
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [picks.length]);
+
+  useEffect(() => {
+    if (picks.length < 2) return;
+    const t = setInterval(() => setIndex((i) => (i + 1) % picks.length), 4200);
+    return () => clearInterval(t);
+  }, [picks.length]);
+
+  if (picks.length === 0) return null;
+  const item = picks[index];
+  const price = item.discounted_price || item.price;
+
+  return (
+    <div className="px-4 pt-4">
+      <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-b from-herb to-[#2c4f34] px-5 pt-5 pb-5">
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
+        <p className="relative text-white/70 text-[11px] font-bold uppercase tracking-[0.12em]">Today's pick</p>
+        <h2 className="relative text-white font-display text-xl font-bold leading-tight mt-1 max-w-[75%]">
+          Freshly made,<br />just for you
+        </h2>
+
+        <button onClick={() => onOpenItem(item)} className="relative w-full flex flex-col items-center mt-2 group">
+          <span className="w-40 h-40 rounded-full bg-white/15 flex items-center justify-center transition-transform group-active:scale-95 overflow-hidden">
+            {item.image_url ? (
+              <img
+                src={item.image_url}
+                alt={item.name}
+                className="w-32 h-32 object-cover rounded-full shadow-lg ring-4 ring-white/10"
+              />
+            ) : (
+              <div className="w-32 h-32 rounded-full overflow-hidden">
+                <Monogram name={item.name} size="lg" className="text-3xl" />
+              </div>
+            )}
+          </span>
+          <span className="mt-4 text-white font-semibold text-base">{item.name}</span>
+          <span className="text-white/80 text-sm mt-0.5">{money(price, currency)}</span>
+        </button>
+
+        {picks.length > 1 && (
+          <div className="relative flex justify-center gap-1.5 mt-4">
+            {picks.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all ${i === index ? "w-5 bg-white" : "w-1.5 bg-white/35"}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MenuItemCard({ item, currency, onOpen, isNew }) {
   const hasDiscount = item.discounted_price && item.discounted_price < item.price;
   return (
@@ -541,33 +629,57 @@ function Badge({ label, tone }) {
 
 // ---------- Item Detail ----------
 
+const NOTE_OPTIONS = ["Less spicy", "No onions", "Extra sauce"];
+
 function ItemDetail({ item, currency, onClose, onAdd }) {
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState("");
+  const [justAdded, setJustAdded] = useState(false);
   const price = item.discounted_price || item.price;
+  const allergens = JSON.parse(item.allergens || "[]");
+
+  function handleAdd() {
+    setJustAdded(true);
+    setTimeout(() => onAdd(qty, note), 850);
+  }
 
   return (
     <div className="fixed inset-0 z-40 bg-ink/50 flex items-end" onClick={onClose}>
       <div
-        className="bg-paper w-full rounded-t-3xl max-h-[88vh] overflow-y-auto animate-rise-in"
+        className="relative bg-paper w-full rounded-t-[32px] max-h-[92vh] overflow-y-auto animate-rise-in"
         onClick={(e) => e.stopPropagation()}
       >
-        {item.image_url ? (
-          <img src={item.image_url} alt={item.name} className="h-52 w-full object-cover" />
-        ) : (
-          <div className="h-40 border-b border-ink/10">
-            <Monogram name={item.name} size="lg" className="rounded-none" />
+        {/* Back / close */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink"
+        >
+          <ChevronLeft size={19} />
+        </button>
+        <span className="absolute top-4 left-1/2 -translate-x-1/2 z-10 text-sm font-bold text-ink/70">Details</span>
+
+        {/* Product image floating on a colored blob, like a hero shot */}
+        <div className="pt-16 pb-3 flex justify-center bg-gradient-to-b from-herb/12 to-transparent">
+          <div className="relative w-48 h-48 rounded-full bg-herb/15 flex items-center justify-center overflow-hidden">
+            {item.image_url ? (
+              <img src={item.image_url} alt={item.name} className="w-40 h-40 object-cover rounded-full shadow-xl" />
+            ) : (
+              <div className="w-40 h-40 rounded-full overflow-hidden">
+                <Monogram name={item.name} size="lg" className="text-4xl" />
+              </div>
+            )}
           </div>
-        )}
-        <div className="p-5">
+        </div>
+
+        <div className="px-5 pt-2 pb-32">
           <div className="flex items-start justify-between gap-3">
-            <h2 className="font-display text-2xl font-bold text-ink">{item.name}</h2>
+            <h2 className="font-display text-2xl font-bold text-ink leading-tight">{item.name}</h2>
             <VegDot veg={item.is_veg} />
           </div>
           <p className="text-ink/60 mt-1.5 text-sm">{item.description}</p>
 
           <div className="flex items-center gap-2 mt-3 flex-wrap">
-            <span className="font-semibold text-lg text-ink">{money(price, currency)}</span>
+            <span className="font-bold text-xl text-herb">{money(price, currency)}</span>
             {item.discounted_price ? (
               <span className="text-sm text-clay line-through">{money(item.price, currency)}</span>
             ) : null}
@@ -575,49 +687,88 @@ function ItemDetail({ item, currency, onClose, onAdd }) {
             <Badge label={`${item.prep_time_minutes} min`} tone="chili" />
           </div>
 
-          {JSON.parse(item.allergens || "[]").length > 0 && (
-            <p className="text-xs text-clay mt-3">
-              Allergens: {JSON.parse(item.allergens || "[]").join(", ")}
-            </p>
+          {allergens.length > 0 && (
+            <p className="text-xs text-clay mt-3">Allergens: {allergens.join(", ")}</p>
           )}
 
-          <div className="mt-5">
-            <p className="text-sm font-semibold text-ink mb-1.5">Add a note (optional)</p>
-            <div className="flex gap-2 flex-wrap mb-2">
-              {["Less spicy", "No onions", "Extra sauce"].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setNote(s)}
-                  className={`text-xs px-3 py-1.5 rounded-full border ${
-                    note === s ? "bg-ink text-paper border-ink" : "border-ink/15 text-ink/70"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+          {/* "Size options"-style row, reused here for customization chips */}
+          <div className="mt-6">
+            <p className="text-sm font-semibold text-ink mb-2.5">Customize (optional)</p>
+            <div className="flex gap-3">
+              {NOTE_OPTIONS.map((s) => {
+                const active = note === s;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setNote(active ? "" : s)}
+                    className="flex flex-col items-center gap-1.5 flex-1"
+                  >
+                    <span
+                      className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${
+                        active ? "bg-herb border-herb text-white" : "bg-white border-ink/10 text-ink/50"
+                      }`}
+                    >
+                      <Tag size={16} />
+                    </span>
+                    <span className={`text-[11px] font-semibold text-center leading-tight ${active ? "text-ink" : "text-ink/45"}`}>
+                      {s}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. no coriander"
-              className="w-full bg-white border border-ink/10 rounded-card px-3.5 py-2 text-sm outline-none focus:border-chili"
+              placeholder="Or type your own note, e.g. no coriander"
+              className="mt-3 w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-herb"
             />
           </div>
+        </div>
 
-          <div className="mt-6 flex items-center gap-4">
-            <div className="flex items-center border border-ink/15 rounded-card">
-              <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-3.5 py-2 text-lg">−</button>
-              <span className="px-2 font-semibold">{qty}</span>
-              <button onClick={() => setQty((q) => q + 1)} className="px-3.5 py-2 text-lg">+</button>
-            </div>
+        {/* Sticky quantity + Add to order bar, pinned like the reference's bottom bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-paper border-t border-ink/10 px-5 py-4 flex items-center gap-3">
+          <div className="flex items-center border-2 border-ink/10 rounded-full flex-shrink-0">
             <button
-              onClick={() => onAdd(qty, note)}
-              className="flex-1 bg-chili text-white font-semibold py-3 rounded-card"
+              onClick={() => setQty((q) => Math.max(1, q - 1))}
+              className="w-10 h-10 flex items-center justify-center text-ink/70"
             >
-              Add {money(price * qty, currency)}
+              <Minus size={16} />
+            </button>
+            <span className="w-6 text-center font-bold text-ink">{qty}</span>
+            <button
+              onClick={() => setQty((q) => q + 1)}
+              className="w-10 h-10 flex items-center justify-center text-ink/70"
+            >
+              <Plus size={16} />
             </button>
           </div>
+          <button
+            disabled={justAdded}
+            onClick={handleAdd}
+            className="flex-1 bg-herb disabled:opacity-70 text-white font-semibold py-3.5 rounded-full transition-transform active:scale-[0.98]"
+          >
+            {justAdded ? "Added!" : `Add to order · ${money(price * qty, currency)}`}
+          </button>
         </div>
+
+        {/* Success confirmation, mirroring the reference's "added to order" moment */}
+        {justAdded && (
+          <div
+            className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center px-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-white rounded-3xl px-6 py-7 text-center max-w-xs w-full animate-rise-in shadow-2xl">
+              <div className="w-14 h-14 rounded-full bg-herb/15 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle2 size={30} className="text-herb" />
+              </div>
+              <p className="font-display text-lg font-bold text-ink">Added to your order!</p>
+              <p className="text-sm text-ink/60 mt-1">
+                {item.name} × {qty}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
