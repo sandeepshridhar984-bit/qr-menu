@@ -229,12 +229,27 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
 
 function ScrollingBanner({ messages }) {
   if (!messages || messages.length === 0) return null;
-  const text = messages.join("     ✦     ");
   return (
-    <div className="w-full overflow-hidden bg-turmeric/20 border-y border-turmeric/30 py-1.5">
-      <div className="flex whitespace-nowrap animate-marquee">
-        <span className="text-xs font-semibold text-chili-dark px-4">{text}</span>
-        <span className="text-xs font-semibold text-chili-dark px-4">{text}</span>
+    <div className="relative w-full overflow-hidden py-2 bg-gradient-to-r from-chili-dark via-chili to-chili-dark shadow-md">
+      {/* A glossy sweep of light drifting across the banner -- reads as
+          "something exciting is happening here" rather than a plain static bar. */}
+      <div className="absolute inset-0 banner-shine pointer-events-none" />
+      <div className="flex whitespace-nowrap animate-marquee relative z-10">
+        {[0, 1].map((dup) => (
+          <span key={dup} className="flex items-center">
+            {messages.map((m, i) => (
+              <span key={i} className="flex items-center gap-2 mx-5">
+                <Sparkles size={13} className="text-turmeric flex-shrink-0 animate-pulse-soft" />
+                <span
+                  className="text-xs font-bold tracking-wide text-paper uppercase"
+                  style={{ textShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
+                >
+                  {m}
+                </span>
+              </span>
+            ))}
+          </span>
+        ))}
       </div>
       <style jsx>{`
         @keyframes marquee {
@@ -242,8 +257,24 @@ function ScrollingBanner({ messages }) {
           100% { transform: translateX(-50%); }
         }
         .animate-marquee {
-          animation: marquee 18s linear infinite;
+          animation: marquee 22s linear infinite;
           width: max-content;
+        }
+        @keyframes shine {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(220%); }
+        }
+        .banner-shine {
+          width: 55%;
+          background: linear-gradient(
+            100deg,
+            transparent 30%,
+            rgba(255, 255, 255, 0.3) 45%,
+            rgba(255, 255, 255, 0.55) 50%,
+            rgba(255, 255, 255, 0.3) 55%,
+            transparent 70%
+          );
+          animation: shine 3s ease-in-out infinite;
         }
       `}</style>
     </div>
