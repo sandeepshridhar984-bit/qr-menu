@@ -30,7 +30,7 @@ function fileToDataUrl(file) {
 
 export default function DashboardApp({
   restaurant: initialRestaurant, categories: initialCategories, items: initialItems, tables: initialTables,
-  offers: initialOffers, orders: initialOrders, paymentSettings, subscription, totals,
+  offers: initialOffers, orders: initialOrders, paymentSettings: initialPaymentSettings, subscription, totals,
   campaigns: initialCampaigns, reviews: initialReviews, userName, taxes: initialTaxes, platformContact,
   paymentProofs: initialPaymentProofs,
 }) {
@@ -45,6 +45,7 @@ export default function DashboardApp({
   const [campaigns, setCampaigns] = useState(initialCampaigns);
   const [taxes, setTaxes] = useState(initialTaxes);
   const [reviews, setReviews] = useState(initialReviews);
+  const [paymentSettings, setPaymentSettings] = useState(initialPaymentSettings);
   const [paymentProofs, setPaymentProofs] = useState(initialPaymentProofs || []);
   const [paymentModalOpen, setPaymentModalOpen] = useState(restaurant.status === "pending_payment");
   const [confirmDialog, setConfirmDialog] = useState(null); // { message, onConfirm } | null
@@ -184,7 +185,9 @@ export default function DashboardApp({
         {tab === "Taxes" && <TaxesTab restaurant={restaurant} taxes={taxes} setTaxes={setTaxes} askConfirm={askConfirm} />}
         {tab === "Tables & QR" && <TablesTab restaurant={restaurant} tables={tables} setTables={setTables} />}
         {tab === "Customer View" && <CustomerViewTab restaurant={restaurant} tables={tables} onRestaurantUpdate={setRestaurant} />}
-        {tab === "Payment settings" && <PaymentSettingsTab restaurant={restaurant} paymentSettings={paymentSettings} />}
+        {tab === "Payment settings" && (
+          <PaymentSettingsTab restaurant={restaurant} paymentSettings={paymentSettings} setPaymentSettings={setPaymentSettings} />
+        )}
         {tab === "Billing" && (
           <BillingTab
             restaurant={restaurant}
@@ -466,6 +469,24 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
           <hr />
           <p>Payment: ${order.payment_method ? order.payment_method.replace("_", " ") + " (" + order.payment_status.replace("_", " ") + ")" : "not yet billed"}</p>
           ${order.customer_note ? `<p>Note: ${order.customer_note}</p>` : ""}
+          ${
+            // The QR/UPI block always prints here, even if "Pay online" is
+            // switched off for the customer's phone at checkout -- staff can
+            // still hand over a printed/on-screen receipt with the QR so the
+            // customer can pay by scanning it directly.
+            paymentSettings?.phonepe_qr_image_url || paymentSettings?.upi_id
+              ? `
+          <hr />
+          <p style="text-align:center;font-weight:bold;">Pay via UPI</p>
+          ${
+            paymentSettings?.phonepe_qr_image_url
+              ? `<img src="${paymentSettings.phonepe_qr_image_url}" style="width:150px;height:150px;display:block;margin:8px auto;" />`
+              : ""
+          }
+          ${paymentSettings?.upi_id ? `<p style="text-align:center;">${paymentSettings.upi_id}</p>` : ""}
+          `
+              : ""
+          }
         </body>
       </html>
     `);
@@ -1026,10 +1047,20 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
   const [showForm, setShowForm] = useState(false);
 
   async function toggleActive(c) {
+    const newActive = c.active ? 0 : 1;
     const res = await fetch(`/api/admin/${restaurant.slug}/campaigns/${c.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: c.active ? 0 : 1 }),
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: newActive }),
     });
-    if (res.ok) setCampaigns((prev) => prev.map((x) => (x.id === c.id ? { ...x, active: c.active ? 0 : 1 } : x)));
+    if (res.ok) {
+      setCampaigns((prev) =>
+        prev.map((x) => {
+          if (x.id === c.id) return { ...x, active: newActive };
+          // Only one campaign can be active at a time -- turning this one
+          // on pauses every other one, matching what the server just did.
+          return newActive ? { ...x, active: 0 } : x;
+        })
+      );
+    }
   }
   async function deleteCampaign(c) {
     askConfirm(`Delete campaign "${c.title}"?`, async () => {
@@ -1126,7 +1157,13 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
         <CampaignFormModal
           restaurant={restaurant}
           onClose={() => setShowForm(false)}
-          onSaved={(c) => { setCampaigns((prev) => [...prev, c]); setShowForm(false); }}
+          onSaved={(c) => {
+            // The new campaign comes back active=1, and the server just
+            // paused every other campaign for this restaurant to match --
+            // mirror that here too so the list doesn't show two "Active" pills.
+            setCampaigns((prev) => [...prev.map((x) => ({ ...x, active: 0 })), c]);
+            setShowForm(false);
+          }}
         />
       )}
     </div>
@@ -1669,10 +1706,11 @@ function TablesTab({ restaurant, tables, setTables }) {
 
 // ---------- Payment settings ----------
 
-function PaymentSettingsTab({ restaurant, paymentSettings }) {
+function PaymentSettingsTab({ restaurant, paymentSettings, setPaymentSettings }) {
   const [upiId, setUpiId] = useState(paymentSettings?.upi_id || "");
   const [qrPreview, setQrPreview] = useState(paymentSettings?.phonepe_qr_image_url || null);
   const [qrDataUrl, setQrDataUrl] = useState(null);
+  const [onlineEnabled, setOnlineEnabled] = useState(paymentSettings?.online_enabled !== 0);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -1694,9 +1732,21 @@ function PaymentSettingsTab({ restaurant, paymentSettings }) {
         if (upRes.ok) qrUrl = upData.url;
       }
       const res = await fetch(`/api/admin/${restaurant.slug}/payment-settings`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ upi_id: upiId, phonepe_qr_image_url: qrUrl }),
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upi_id: upiId, phonepe_qr_image_url: qrUrl, online_enabled: onlineEnabled }),
       });
-      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setQrPreview(qrUrl);
+        setQrDataUrl(null);
+        // Keep the parent's copy in sync so the printed receipt (which
+        // always shows this QR, regardless of the toggle below) reflects
+        // whatever was just saved without needing a page refresh.
+        if (data.paymentSettings) setPaymentSettings(data.paymentSettings);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
     } finally { setSaving(false); }
   }
 
@@ -1715,6 +1765,17 @@ function PaymentSettingsTab({ restaurant, paymentSettings }) {
         {qrPreview ? <img src={qrPreview} className="w-16 h-16 rounded-lg object-cover" alt="" /> : <span className="w-16 h-16 rounded-lg bg-clay-light flex items-center justify-center"><QrCode size={24} className="text-clay" /></span>}
         <span className="text-xs text-clay">Upload a screenshot of your PhonePe/UPI QR code</span>
         <input type="file" accept="image/*" onChange={handleQrImage} className="hidden" />
+      </label>
+
+      <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
+        <input type="checkbox" checked={onlineEnabled} onChange={(e) => setOnlineEnabled(e.target.checked)} className="mt-0.5" />
+        <span className="text-sm text-ink">
+          <span className="font-semibold">Show this QR to customers on their phone</span>
+          <span className="block text-xs text-clay mt-0.5">
+            Turn this off if you'd rather show the QR yourself at the table instead — it'll still
+            always appear on the printed/on-screen receipt either way.
+          </span>
+        </span>
       </label>
 
       <button disabled={saving} onClick={save} className="bg-chili text-white px-5 py-2.5 rounded-card text-sm font-semibold disabled:opacity-60 inline-flex items-center gap-1.5">
