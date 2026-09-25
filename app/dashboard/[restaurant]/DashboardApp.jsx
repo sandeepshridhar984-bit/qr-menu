@@ -7,10 +7,11 @@ import { parseDbDate } from "@/lib/clientDates";
 import {
   Eye, Bell, CreditCard, Check, Camera, Video, Star, QrCode,
   Smartphone, RefreshCw, ExternalLink, Printer, Upload, ChefHat,
+  Mic, Plus, Trash2, Sparkles,
 } from "lucide-react";
 
 const TABS = ["Orders", "Menu", "Offers", "Campaigns", "Taxes", "Tables & QR", "Customer View", "Payment settings", "Billing"];
-const STATUS_FLOW = ["pending", "completed"];
+const STATUS_FLOW = ["pending", "preparing", "served", "completed"];
 const SPICE_LEVELS = ["none", "mild", "medium", "hot"];
 
 function money(n, currency = "INR") {
@@ -463,7 +464,7 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
             <tr class="total"><td>Total</td><td style="text-align:right">${money(order.total, restaurant.currency)}</td></tr>
           </table>
           <hr />
-          <p>Payment: ${order.payment_method.replace("_", " ")} (${order.payment_status.replace("_", " ")})</p>
+          <p>Payment: ${order.payment_method ? order.payment_method.replace("_", " ") + " (" + order.payment_status.replace("_", " ") + ")" : "not yet billed"}</p>
           ${order.customer_note ? `<p>Note: ${order.customer_note}</p>` : ""}
         </body>
       </html>
@@ -541,15 +542,22 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
                   <p className="font-semibold text-ink">#{o.order_number} · Table {o.table_number}</p>
                   <p className="text-xs text-clay mt-0.5">{o.items.map((it) => `${it.name} ×${it.quantity}`).join(", ")}</p>
                   <p className="text-xs text-clay mt-0.5">
-                    {money(o.total, restaurant.currency)} · {o.payment_method.replace("_", " ")} ·{" "}
-                    <span className={o.payment_status === "paid" ? "text-herb font-medium" : "text-chili-dark font-medium"}>
-                      {o.payment_status.replace("_", " ")}
-                    </span>
+                    {money(o.total, restaurant.currency)}
+                    {o.payment_method ? (
+                      <>
+                        {" · "}{o.payment_method.replace("_", " ")}{" · "}
+                        <span className={o.payment_status === "paid" ? "text-herb font-medium" : "text-chili-dark font-medium"}>
+                          {o.payment_status.replace("_", " ")}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-clay font-medium"> · awaiting bill</span>
+                    )}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                {o.payment_status !== "paid" && (
+                {o.payment_method && o.payment_status !== "paid" && (
                   <button onClick={() => confirmPayment(o.order_number)} className="text-xs font-semibold bg-herb/15 text-herb px-3 py-1.5 rounded-full">
                     {o.payment_status === "pending_confirmation" ? "Confirm payment received" : "Mark as paid"}
                   </button>
@@ -1062,13 +1070,17 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
           <Card key={c.id} className="p-4">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex items-start gap-2.5">
-                <Video size={17} className="text-chili-dark mt-0.5 flex-shrink-0" />
+                {c.media_type === "audio" ? (
+                  <Mic size={17} className="text-chili-dark mt-0.5 flex-shrink-0" />
+                ) : (
+                  <Video size={17} className="text-chili-dark mt-0.5 flex-shrink-0" />
+                )}
                 <div>
                   <p className="font-semibold text-ink">{c.title}</p>
                   <p className="text-xs text-clay mt-1">{c.description}</p>
                   <p className="text-xs text-clay mt-1">
                     {c.discount_type === "percent" ? `${c.discount_value}% off` : `${money(c.discount_value, restaurant.currency)} off`} this order
-                    {c.requires_video ? " · video required" : " · video optional"}
+                    {" · "}{c.media_type === "audio" ? "voice note" : "video"} {c.requires_video ? "required" : "optional"}
                     {c.allow_instagram_repost ? " · Instagram reuse allowed (with separate consent)" : ""}
                   </p>
                 </div>
@@ -1126,7 +1138,7 @@ function CampaignFormModal({ restaurant, onClose, onSaved }) {
     title: "Share a video, get a discount",
     description: "Post a quick video about your food experience and get a discount on your next visit.",
     discount_type: "percent", discount_value: "10",
-    requires_video: true, allow_instagram_repost: false,
+    requires_video: true, allow_instagram_repost: false, media_type: "video",
     terms_text: "We're asking for honest feedback, not a positive review. Your video/photo may be used internally to improve our food and service.",
   });
   const [error, setError] = useState("");
@@ -1163,8 +1175,27 @@ function CampaignFormModal({ restaurant, onClose, onSaved }) {
             </Field>
             <Field label="Discount value"><Input type="number" value={form.discount_value} onChange={(v) => setForm({ ...form, discount_value: v })} /></Field>
           </div>
+          <Field label="What should customers submit?">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, media_type: "video" })}
+                className={`flex-1 text-xs font-semibold py-2 rounded-card border inline-flex items-center justify-center gap-1.5 ${form.media_type === "video" ? "bg-chili text-white border-chili" : "border-ink/15 text-ink/70"}`}
+              >
+                <Video size={14} /> Video
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, media_type: "audio" })}
+                className={`flex-1 text-xs font-semibold py-2 rounded-card border inline-flex items-center justify-center gap-1.5 ${form.media_type === "audio" ? "bg-chili text-white border-chili" : "border-ink/15 text-ink/70"}`}
+              >
+                <Mic size={14} /> Voice note
+              </button>
+            </div>
+          </Field>
           <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" checked={form.requires_video} onChange={(e) => setForm({ ...form, requires_video: e.target.checked })} /> Require a video (uncheck to also allow text-only feedback)
+            <input type="checkbox" checked={form.requires_video} onChange={(e) => setForm({ ...form, requires_video: e.target.checked })} />
+            {form.media_type === "audio" ? "Require a voice note (uncheck to also allow text-only feedback)" : "Require a video (uncheck to also allow text-only feedback)"}
           </label>
           <label className="flex items-center gap-2 text-sm text-ink">
             <input type="checkbox" checked={form.allow_instagram_repost} onChange={(e) => setForm({ ...form, allow_instagram_repost: e.target.checked })} /> Ask for separate permission to repost on Instagram
@@ -1321,6 +1352,10 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
   const [coverPreview, setCoverPreview] = useState(restaurant.cover_image_url || null);
   const [tagline, setTagline] = useState(restaurant.tagline || "");
   const [instagramUrl, setInstagramUrl] = useState(restaurant.instagram_url || "");
+  const [bannerMessages, setBannerMessages] = useState(() => {
+    try { return JSON.parse(restaurant.banner_messages || "[]"); } catch { return []; }
+  });
+  const [newBannerText, setNewBannerText] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState("");
@@ -1392,6 +1427,37 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
     }
   }
 
+  async function saveBannerMessages(next) {
+    setBannerMessages(next);
+    setSavingProfile(true);
+    setProfileError("");
+    try {
+      const res = await fetch(`/api/admin/${restaurant.slug}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ banner_messages: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save.");
+      onRestaurantUpdate?.(data.restaurant);
+      setProfileSaved(true);
+      setReloadKey((k) => k + 1);
+      setTimeout(() => setProfileSaved(false), 2000);
+    } catch (e) {
+      setProfileError(e.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  function addBannerMessage() {
+    if (!newBannerText.trim()) return;
+    saveBannerMessages([...bannerMessages, newBannerText.trim()]);
+    setNewBannerText("");
+  }
+
+  function removeBannerMessage(idx) {
+    saveBannerMessages(bannerMessages.filter((_, i) => i !== idx));
+  }
+
   const profileSection = (
     <div className="bg-white border border-ink/10 rounded-2xl p-5 mb-5 max-w-2xl">
       <p className="text-sm font-semibold text-ink mb-1">Welcome screen — logo & background</p>
@@ -1458,6 +1524,40 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
             Save
           </button>
         </div>
+      </div>
+      <div className="mt-4">
+        <label className="block text-xs font-semibold text-ink mb-1.5">Scrolling announcement banner (optional)</label>
+        <p className="text-xs text-clay mb-1.5">
+          Add one or more short messages that scroll under your name on the customer's menu screen -- e.g. "Exclusive discount today only!" You can add several; they'll rotate.
+        </p>
+        <div className="flex gap-2 mb-2">
+          <input
+            value={newBannerText}
+            onChange={(e) => setNewBannerText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addBannerMessage(); }}
+            placeholder="e.g. Exclusive discount today only!"
+            className="flex-1 border border-ink/15 rounded-card px-3.5 py-2.5 text-sm bg-white"
+          />
+          <button
+            onClick={addBannerMessage}
+            disabled={savingProfile || !newBannerText.trim()}
+            className="bg-ink hover:bg-ink/90 disabled:opacity-40 transition-colors text-paper font-semibold px-4 rounded-card text-sm inline-flex items-center gap-1.5"
+          >
+            <Plus size={15} /> Add
+          </button>
+        </div>
+        {bannerMessages.length > 0 && (
+          <div className="grid gap-1.5">
+            {bannerMessages.map((msg, idx) => (
+              <div key={idx} className="flex items-center justify-between gap-2 bg-paper border border-ink/10 rounded-card px-3 py-2">
+                <span className="text-sm text-ink flex items-center gap-1.5"><Sparkles size={13} className="text-turmeric flex-shrink-0" /> {msg}</span>
+                <button onClick={() => removeBannerMessage(idx)} className="text-clay hover:text-chili-dark transition-colors flex-shrink-0">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       {profileError && <p className="text-xs text-chili-dark font-medium mt-2">{profileError}</p>}
       {profileSaved && <p className="text-xs text-herb font-medium mt-2">Saved — reflected in the preview below.</p>}

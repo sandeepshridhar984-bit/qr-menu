@@ -66,7 +66,7 @@ export default function KitchenApp({ restaurant, orders: initialOrders }) {
         if (!res.ok) return;
         const data = await res.json();
         const pending = data.orders
-          .filter((o) => o.status === "pending")
+          .filter((o) => o.status === "pending" || o.status === "preparing")
           .sort((a, b) => parseDbDate(a.created_at) - parseDbDate(b.created_at));
 
         const newOnes = pending.filter((o) => !knownIds.current.has(o.id));
@@ -84,12 +84,21 @@ export default function KitchenApp({ restaurant, orders: initialOrders }) {
     return () => clearInterval(interval);
   }, [restaurant.slug]);
 
-  async function markReady(orderNumber) {
+  async function startPreparing(orderNumber) {
+    setOrders((prev) => prev.map((o) => (o.order_number === orderNumber ? { ...o, status: "preparing" } : o)));
+    await fetch(`/api/admin/${restaurant.slug}/orders/${orderNumber}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "preparing" }),
+    }).catch(() => {});
+  }
+
+  async function markServed(orderNumber) {
     setOrders((prev) => prev.filter((o) => o.order_number !== orderNumber));
     await fetch(`/api/admin/${restaurant.slug}/orders/${orderNumber}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "completed" }),
+      body: JSON.stringify({ status: "served" }),
     }).catch(() => {});
   }
 
@@ -123,7 +132,12 @@ export default function KitchenApp({ restaurant, orders: initialOrders }) {
                   <Clock size={13} /> {timeAgo(o.created_at)}
                 </span>
               </div>
-              <p className="text-xs text-clay mb-3">#{o.order_number}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-xs text-clay">#{o.order_number}</p>
+                {o.status === "preparing" && (
+                  <span className="text-[11px] font-bold text-chili-dark bg-turmeric/25 px-2 py-0.5 rounded-full">PREPARING</span>
+                )}
+              </div>
 
               <div className="grid gap-2 flex-1">
                 {o.items.map((it) => (
@@ -140,12 +154,21 @@ export default function KitchenApp({ restaurant, orders: initialOrders }) {
                 </p>
               )}
 
-              <button
-                onClick={() => markReady(o.order_number)}
-                className="mt-4 bg-herb hover:bg-herb/90 transition-colors text-white font-bold py-3 rounded-card text-base"
-              >
-                Mark Ready
-              </button>
+              {o.status === "pending" ? (
+                <button
+                  onClick={() => startPreparing(o.order_number)}
+                  className="mt-4 bg-turmeric hover:bg-turmeric/90 transition-colors text-ink font-bold py-3 rounded-card text-base"
+                >
+                  Start Preparing
+                </button>
+              ) : (
+                <button
+                  onClick={() => markServed(o.order_number)}
+                  className="mt-4 bg-herb hover:bg-herb/90 transition-colors text-white font-bold py-3 rounded-card text-base"
+                >
+                  Mark Served
+                </button>
+              )}
             </div>
           ))}
         </div>

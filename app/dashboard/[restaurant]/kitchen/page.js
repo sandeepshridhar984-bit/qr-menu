@@ -30,7 +30,7 @@ export default function KitchenPage({ params }) {
     .prepare(
       `SELECT o.*, t.table_number FROM orders o
        LEFT JOIN tables t ON t.id = o.table_id
-       WHERE o.restaurant_id = ? AND o.status = 'pending'
+       WHERE o.restaurant_id = ? AND o.status IN ('pending', 'preparing')
        ORDER BY o.created_at ASC`
     )
     .all(restaurant.id);

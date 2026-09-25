@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const ALLOWED_STATUSES = ["pending", "completed"];
+const ALLOWED_STATUSES = ["pending", "preparing", "served", "completed"];
 
 export async function DELETE(request, { params }) {
   const order = db.prepare("SELECT * FROM orders WHERE order_number = ?").get(params.orderNumber);
@@ -24,10 +24,17 @@ export async function PATCH(request, { params }) {
   const order = db.prepare("SELECT * FROM orders WHERE order_number = ?").get(params.orderNumber);
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const status = body.status !== undefined
+  let status = body.status !== undefined
     ? (ALLOWED_STATUSES.includes(body.status) ? body.status : order.status)
     : order.status;
   const paymentStatus = body.payment_status ?? order.payment_status;
+
+  // Marking a served order's payment as received also closes it out --
+  // "served + paid" is what "completed" means. Staff don't need a
+  // separate manual step for this.
+  if (paymentStatus === "paid" && status === "served") {
+    status = "completed";
+  }
 
   db.prepare(
     `UPDATE orders SET status = ?, payment_status = ?, updated_at = datetime('now') WHERE id = ?`

@@ -10,12 +10,16 @@ export async function PATCH(request, { params }) {
   const cover_image_url = body.cover_image_url !== undefined ? body.cover_image_url : restaurant.cover_image_url;
   const tagline = body.tagline !== undefined ? body.tagline : restaurant.tagline;
   const instagram_url = body.instagram_url !== undefined ? body.instagram_url : restaurant.instagram_url;
+  const banner_messages = body.banner_messages !== undefined
+    ? JSON.stringify(body.banner_messages)
+    : restaurant.banner_messages;
 
-  db.prepare(`UPDATE restaurants SET logo_image_url = ?, cover_image_url = ?, tagline = ?, instagram_url = ? WHERE id = ?`).run(
+  db.prepare(`UPDATE restaurants SET logo_image_url = ?, cover_image_url = ?, tagline = ?, instagram_url = ?, banner_messages = ? WHERE id = ?`).run(
     logo_image_url || "",
     cover_image_url || "",
     tagline || "",
     instagram_url || "",
+    banner_messages || "[]",
     restaurant.id
   );
 

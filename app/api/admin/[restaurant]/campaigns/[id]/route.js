@@ -6,7 +6,7 @@ export async function PATCH(request, { params }) {
   const campaign = db.prepare("SELECT * FROM campaigns WHERE id = ?").get(params.id);
   if (!campaign) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const fields = ["title", "description", "discount_type", "discount_value", "requires_video", "allow_instagram_repost", "terms_text", "active"];
+  const fields = ["title", "description", "discount_type", "discount_value", "requires_video", "allow_instagram_repost", "terms_text", "active", "media_type"];
   const boolFields = ["requires_video", "allow_instagram_repost", "active"];
   const updates = {};
   for (const f of fields) {

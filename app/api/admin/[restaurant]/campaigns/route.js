@@ -9,6 +9,7 @@ export async function POST(request, { params }) {
   const {
     title, description = "", discount_type = "percent", discount_value,
     requires_video = 1, allow_instagram_repost = 0, terms_text = "",
+    media_type = "video",
   } = await request.json();
 
   if (!title?.trim() || discount_value === undefined) {
@@ -19,11 +20,12 @@ export async function POST(request, { params }) {
   db.prepare(
     `INSERT INTO campaigns
       (id, restaurant_id, title, description, discount_type, discount_value,
-       requires_video, allow_instagram_repost, terms_text, terms_version, active)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1', 1)`
+       requires_video, allow_instagram_repost, terms_text, terms_version, active, media_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1', 1, ?)`
   ).run(
     id, restaurant.id, title.trim(), description, discount_type, Number(discount_value),
-    requires_video ? 1 : 0, allow_instagram_repost ? 1 : 0, terms_text
+    requires_video ? 1 : 0, allow_instagram_repost ? 1 : 0, terms_text,
+    media_type === "audio" ? "audio" : "video"
   );
 
   const campaign = db.prepare("SELECT * FROM campaigns WHERE id = ?").get(id);

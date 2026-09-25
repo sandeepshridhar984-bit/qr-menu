@@ -2,10 +2,12 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import Monogram from "@/components/Monogram";
+import { parseDbDate } from "@/lib/clientDates";
 import {
   Volume2, ArrowRight, Search, Sparkles, ShoppingCart, Minus, Plus,
-  Star, Tag, Video, CheckCheck, Banknote, QrCode, CheckCircle2,
+  Star, Tag, Video, Mic, CheckCheck, Banknote, QrCode, CheckCircle2,
   ChevronLeft, X, UtensilsCrossed, Armchair, ChefHat, Instagram,
+  ChefHat as ChefHatIcon, Flame, Truck,
 } from "lucide-react";
 
 const FILTERS = [
@@ -16,9 +18,19 @@ const FILTERS = [
   { key: "budget", label: "Under ₹200" },
 ];
 
+// A menu item counts as "new" for this many days after it's added -- shown
+// in its own row at the top of the menu, plus a small badge on the card.
+const NEW_ITEM_WINDOW_DAYS = 10;
+
 function money(n, currency = "INR") {
   const symbol = currency === "INR" ? "₹" : currency + " ";
   return `${symbol}${Math.round(n)}`;
+}
+
+function isNewItem(item) {
+  if (!item.created_at) return false;
+  const ageMs = Date.now() - parseDbDate(item.created_at).getTime();
+  return ageMs >= 0 && ageMs < NEW_ITEM_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 }
 
 export default function MenuApp({ restaurant, table, categories, items, offers, payment, campaign, taxes, platformFeeRate }) {
@@ -33,49 +45,9 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
   const [cart, setCart] = useState([]);
   const [order, setOrder] = useState(null);
   const [placing, setPlacing] = useState(false);
-  const [payMethod, setPayMethod] = useState("cash");
-  const [paidClicked, setPaidClicked] = useState(false);
-  const [selectedOfferId, setSelectedOfferId] = useState(null);
-  const [campaignFeedback, setCampaignFeedback] = useState(null); // set once customer completes the campaign at checkout
-  const [campaignModalOpen, setCampaignModalOpen] = useState(false);
 
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
   const subtotal = cart.reduce((s, c) => s + c.qty * c.price, 0);
-
-  const eligibleOffers = useMemo(
-    () => offers.filter((o) => subtotal >= o.min_order_value),
-    [offers, subtotal]
-  );
-
-  const selectedOffer = eligibleOffers.find((o) => o.id === selectedOfferId) || null;
-
-  // Mirrors the server's rounding exactly (see app/api/orders/route.js) so
-  // what the customer sees here always matches what actually gets charged
-  // — no surprise rupee differences between preview and receipt.
-  const roundMoney = (n) => Math.round(n);
-
-  const discount = roundMoney(
-    campaignFeedback
-      ? campaign.discount_type === "percent"
-        ? (subtotal * campaign.discount_value) / 100
-        : campaign.discount_value
-      : selectedOffer
-      ? selectedOffer.discount_type === "percent"
-        ? (subtotal * selectedOffer.discount_value) / 100
-        : selectedOffer.discount_value
-      : 0
-  );
-
-  const taxable = Math.max(subtotal - discount, 0);
-  const taxBreakdown = (taxes || []).map((t) => ({
-    name: t.name,
-    type: t.type || "percent",
-    percent: t.percent,
-    amount: roundMoney(t.type === "fixed" ? t.percent : (taxable * t.percent) / 100),
-  }));
-  const tax = taxBreakdown.reduce((s, t) => s + t.amount, 0);
-  const platformFee = roundMoney(platformFeeRate || 0);
-  const total = roundMoney(taxable + tax + platformFee);
 
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
@@ -95,6 +67,8 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
       return true;
     });
   }, [items, query, filters, activeCategory]);
+
+  const newItems = useMemo(() => items.filter(isNewItem), [items]);
 
   function toggleFilter(key) {
     setFilters((f) => (f.includes(key) ? f.filter((x) => x !== key) : [...f, key]));
@@ -139,11 +113,7 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           tableId: table.id,
           items: cart,
           subtotal,
-          offerId: campaignFeedback ? null : selectedOffer?.id || null,
-          campaignId: campaignFeedback ? campaign.id : null,
-          campaignFeedback: campaignFeedback || null,
           sessionId,
-          paymentMethod: payMethod,
         }),
       });
 
@@ -156,9 +126,7 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
       if (!res.ok) throw new Error(data.error || "Order failed");
       setOrder(data.order);
       setCart([]);
-      setSelectedOfferId(null);
-      setCampaignFeedback(null);
-      setView("confirmation");
+      setView("tracking");
     } catch (e) {
       alert("Could not place order: " + e.message);
     } finally {
@@ -186,6 +154,7 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           table={table}
           categories={categories}
           items={filteredItems}
+          newItems={newItems}
           allItemsCount={items.length}
           query={query}
           setQuery={setQuery}
@@ -201,7 +170,7 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           onOpenItem={(it) => setSelectedItem(it)}
           onOpenAssistant={() => setAssistantOpen(true)}
           cartCount={cartCount}
-          cartTotal={total}
+          cartTotal={subtotal}
           onOpenCart={() => setView("cart")}
         />
       )}
@@ -233,66 +202,51 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           cart={cart}
           currency={restaurant.currency}
           subtotal={subtotal}
-          eligibleOffers={eligibleOffers}
-          selectedOfferId={selectedOfferId}
-          onSelectOffer={(id) => { setSelectedOfferId(id); setCampaignFeedback(null); }}
-          campaign={campaign}
-          campaignFeedback={campaignFeedback}
-          onRemoveCampaign={() => setCampaignFeedback(null)}
-          onOpenCampaign={() => setCampaignModalOpen(true)}
-          discount={discount}
-          taxBreakdown={taxBreakdown}
-          tax={tax}
-          platformFee={platformFee}
-          total={total}
           onBack={() => setView("menu")}
           onUpdateQty={updateQty}
-          onCheckout={() => setView("checkout")}
-        />
-      )}
-
-      {campaignModalOpen && campaign && (
-        <CampaignModal
-          campaign={campaign}
-          onClose={() => setCampaignModalOpen(false)}
-          onDone={(feedback) => {
-            setCampaignFeedback(feedback);
-            setSelectedOfferId(null);
-            setCampaignModalOpen(false);
-          }}
-        />
-      )}
-
-      {view === "checkout" && (
-          <CheckoutScreen
-          currency={restaurant.currency}
-          instagramUrl={restaurant.instagram_url}
-          subtotal={subtotal}
-          discount={discount}
-          discountLabel={campaignFeedback ? "Campaign discount" : selectedOffer ? "Offer discount" : null}
-          taxBreakdown={taxBreakdown}
-          platformFee={platformFee}
-          total={total}
-          payMethod={payMethod}
-          setPayMethod={setPayMethod}
-          payment={payment}
-          paidClicked={paidClicked}
-          setPaidClicked={setPaidClicked}
-          placing={placing}
-          onBack={() => setView("cart")}
           onPlaceOrder={placeOrder}
+          placing={placing}
         />
       )}
 
-      {view === "confirmation" && order && (
-        <ConfirmationScreen
-          order={order}
+      {view === "tracking" && order && (
+        <OrderTrackingScreen
+          initialOrder={order}
           restaurant={restaurant}
           table={table}
-          onNewOrder={() => setView("menu")}
+          offers={offers}
+          campaign={campaign}
+          payment={payment}
+          sessionId={sessionId}
+          onNewOrder={() => { setOrder(null); setView("menu"); }}
         />
       )}
     </main>
+  );
+}
+
+// ---------- Scrolling banner ----------
+
+function ScrollingBanner({ messages }) {
+  if (!messages || messages.length === 0) return null;
+  const text = messages.join("     ✦     ");
+  return (
+    <div className="w-full overflow-hidden bg-turmeric/20 border-y border-turmeric/30 py-1.5">
+      <div className="flex whitespace-nowrap animate-marquee">
+        <span className="text-xs font-semibold text-chili-dark px-4">{text}</span>
+        <span className="text-xs font-semibold text-chili-dark px-4">{text}</span>
+      </div>
+      <style jsx>{`
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .animate-marquee {
+          animation: marquee 18s linear infinite;
+          width: max-content;
+        }
+      `}</style>
+    </div>
   );
 }
 
@@ -301,57 +255,60 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
 function WelcomeScreen({ restaurant, table, onEnter }) {
   const hasCover = !!restaurant.cover_image_url;
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center relative overflow-hidden bg-ink">
-      {hasCover ? (
-        <>
-          <img
-            src={restaurant.cover_image_url}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-ink/70 via-ink/60 to-ink" />
-        </>
-      ) : (
-        <>
-          <div className="absolute inset-0 bg-gradient-to-br from-ink via-[#1c2519] to-[#0f140e]" />
-          <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-chili/20 blur-3xl" />
-          <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-turmeric/10 blur-3xl" />
-          <div className="absolute inset-0 opacity-[0.04] flex items-center justify-center select-none">
-            <UtensilsCrossed size={280} strokeWidth={1} className="text-paper" />
-          </div>
-        </>
-      )}
-
-      <div className="relative z-10 animate-rise-in">
-        {restaurant.logo_image_url ? (
-          <img
-            src={restaurant.logo_image_url}
-            alt={restaurant.name}
-            className="w-20 h-20 rounded-2xl object-cover mx-auto mb-5 shadow-xl ring-1 ring-white/10"
-          />
+    <div className="min-h-screen flex flex-col bg-ink">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center relative overflow-hidden">
+        {hasCover ? (
+          <>
+            <img
+              src={restaurant.cover_image_url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-ink/70 via-ink/60 to-ink" />
+          </>
         ) : (
-          <div className="w-20 h-20 mx-auto mb-5 shadow-xl ring-1 ring-white/10 rounded-2xl overflow-hidden">
-            <Monogram name={restaurant.name} size="lg" className="rounded-none text-3xl" />
-          </div>
+          <>
+            <div className="absolute inset-0 bg-gradient-to-br from-ink via-[#1c2519] to-[#0f140e]" />
+            <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-chili/20 blur-3xl" />
+            <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-turmeric/10 blur-3xl" />
+            <div className="absolute inset-0 opacity-[0.04] flex items-center justify-center select-none">
+              <UtensilsCrossed size={280} strokeWidth={1} className="text-paper" />
+            </div>
+          </>
         )}
-        <p className="text-turmeric tracking-[0.15em] uppercase text-xs font-semibold mb-3">Table {table.table_number}</p>
-        <h1 className="font-display text-4xl md:text-5xl font-bold text-paper leading-[1.1]">
-          Welcome to<br />{restaurant.name}
-        </h1>
-        <p className="mt-4 text-paper/60 max-w-xs mx-auto">
-          {restaurant.tagline || "Discover today's delicious specials."}
-        </p>
-        <button
-          onClick={onEnter}
-          className="mt-10 bg-chili hover:bg-chili-dark transition-all hover:scale-[1.03] active:scale-[0.98] text-white font-semibold px-9 py-4 rounded-full shadow-lg shadow-chili/30 inline-flex items-center gap-2"
-        >
-          {restaurant.welcome_sound_enabled ? (
-            <>Tap to Enter <Volume2 size={18} /></>
+
+        <div className="relative z-10 animate-rise-in">
+          {restaurant.logo_image_url ? (
+            <img
+              src={restaurant.logo_image_url}
+              alt={restaurant.name}
+              className="w-20 h-20 rounded-2xl object-cover mx-auto mb-5 shadow-xl ring-1 ring-white/10"
+            />
           ) : (
-            <>Explore Menu <ArrowRight size={18} /></>
+            <div className="w-20 h-20 mx-auto mb-5 shadow-xl ring-1 ring-white/10 rounded-2xl overflow-hidden">
+              <Monogram name={restaurant.name} size="lg" className="rounded-none text-3xl" />
+            </div>
           )}
-        </button>
+          <p className="text-turmeric tracking-[0.15em] uppercase text-xs font-semibold mb-3">Table {table.table_number}</p>
+          <h1 className="font-display text-4xl md:text-5xl font-bold text-paper leading-[1.1]">
+            Welcome to<br />{restaurant.name}
+          </h1>
+          <p className="mt-4 text-paper/60 max-w-xs mx-auto">
+            {restaurant.tagline || "Discover today's delicious specials."}
+          </p>
+          <button
+            onClick={onEnter}
+            className="mt-10 bg-chili hover:bg-chili-dark transition-all hover:scale-[1.03] active:scale-[0.98] text-white font-semibold px-9 py-4 rounded-full shadow-lg shadow-chili/30 inline-flex items-center gap-2"
+          >
+            {restaurant.welcome_sound_enabled ? (
+              <>Tap to Enter <Volume2 size={18} /></>
+            ) : (
+              <>Explore Menu <ArrowRight size={18} /></>
+            )}
+          </button>
+        </div>
       </div>
+      {restaurant.banner_messages?.length > 0 && <ScrollingBanner messages={restaurant.banner_messages} />}
     </div>
   );
 }
@@ -359,7 +316,7 @@ function WelcomeScreen({ restaurant, table, onEnter }) {
 // ---------- Menu ----------
 
 function MenuScreen({
-  restaurant, table, categories, items, allItemsCount, query, setQuery,
+  restaurant, table, categories, items, newItems, allItemsCount, query, setQuery,
   filters, toggleFilter, activeCategory, setActiveCategory, offers,
   onOpenItem, onOpenAssistant, cartCount, cartTotal, onOpenCart,
 }) {
@@ -420,6 +377,8 @@ function MenuScreen({
         )}
       </div>
 
+      {restaurant.banner_messages?.length > 0 && <ScrollingBanner messages={restaurant.banner_messages} />}
+
       {offers.length > 0 && (
         <div className="px-4 pt-4">
           {offers.map((o) => (
@@ -439,6 +398,36 @@ function MenuScreen({
         </button>
       </div>
 
+      {!query && filters.length === 0 && newItems.length > 0 && (
+        <div className="pt-5">
+          <p className="px-4 text-sm font-semibold text-ink mb-2.5 flex items-center gap-1.5">
+            <Sparkles size={15} className="text-turmeric" /> New on the menu
+          </p>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-1">
+            {newItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onOpenItem(item)}
+                className="flex-shrink-0 w-36 text-left bg-white border border-ink/10 rounded-2xl overflow-hidden hover:border-chili/40 hover:shadow-md transition-all"
+              >
+                <div className="relative">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name} className="w-36 h-24 object-cover" />
+                  ) : (
+                    <div className="w-36 h-24"><Monogram name={item.name} size="md" className="rounded-none" /></div>
+                  )}
+                  <span className="absolute top-1.5 left-1.5 text-[10px] font-bold text-white bg-chili px-1.5 py-0.5 rounded-full">NEW</span>
+                </div>
+                <div className="p-2.5">
+                  <p className="font-semibold text-ink text-xs truncate">{item.name}</p>
+                  <p className="text-xs text-clay mt-0.5">{money(item.discounted_price || item.price, restaurant.currency)}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="px-4 pt-5 grid gap-3">
         {items.length === 0 && (
           <p className="text-center text-clay text-sm py-10">
@@ -446,7 +435,7 @@ function MenuScreen({
           </p>
         )}
         {items.map((item) => (
-          <MenuItemCard key={item.id} item={item} currency={restaurant.currency} onOpen={() => onOpenItem(item)} />
+          <MenuItemCard key={item.id} item={item} currency={restaurant.currency} onOpen={() => onOpenItem(item)} isNew={isNewItem(item)} />
         ))}
       </div>
 
@@ -463,7 +452,7 @@ function MenuScreen({
   );
 }
 
-function MenuItemCard({ item, currency, onOpen }) {
+function MenuItemCard({ item, currency, onOpen, isNew }) {
   const hasDiscount = item.discounted_price && item.discounted_price < item.price;
   return (
     <button
@@ -490,6 +479,7 @@ function MenuItemCard({ item, currency, onOpen }) {
           ) : (
             <span className="font-semibold text-ink text-sm">{money(item.price, currency)}</span>
           )}
+          {isNew ? <Badge label="New" tone="chili" /> : null}
           {item.is_popular ? <Badge label="Popular" tone="turmeric" /> : null}
           {(item.spice_level === "medium" || item.spice_level === "hot") ? (
             <Badge label={item.spice_level === "hot" ? "Very spicy" : "Spicy"} tone="chili" />
@@ -711,13 +701,10 @@ function AssistantModal({ restaurantId, items, currency, onClose, onAdd }) {
   );
 }
 
-// ---------- Cart ----------
+// ---------- Cart (items only -- no discounts/payment here anymore; those
+// come after the food is served) ----------
 
-function CartScreen({
-  cart, currency, subtotal, eligibleOffers, selectedOfferId, onSelectOffer,
-  campaign, campaignFeedback, onRemoveCampaign, onOpenCampaign,
-  discount, taxBreakdown, tax, platformFee, total, onBack, onUpdateQty, onCheckout,
-}) {
+function CartScreen({ cart, currency, subtotal, onBack, onUpdateQty, onPlaceOrder, placing }) {
   return (
     <div className="min-h-screen pb-32">
       <div className="bg-white border-b border-ink/10 px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
@@ -755,83 +742,22 @@ function CartScreen({
             ))}
           </div>
 
-          {(eligibleOffers.length > 0 || campaign) && (
-            <div className="px-4 mt-5">
-              <p className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Tag size={15} /> Deals for this order</p>
-              <p className="text-xs text-clay mb-2 -mt-1">Pick at most one — offer or campaign, not both.</p>
-              <div className="grid gap-2">
-                {eligibleOffers.map((o) => {
-                  const isSelected = selectedOfferId === o.id && !campaignFeedback;
-                  return (
-                    <button
-                      key={o.id}
-                      onClick={() => onSelectOffer(isSelected ? null : o.id)}
-                      className={`text-left border rounded-card p-3.5 flex items-center justify-between gap-3 transition-colors ${
-                        isSelected ? "border-chili bg-chili/5" : "border-ink/10 bg-white"
-                      }`}
-                    >
-                      <div>
-                        <p className="font-semibold text-ink text-sm">{o.title}</p>
-                        <p className="text-xs text-clay mt-0.5">
-                          {o.discount_type === "percent" ? `${o.discount_value}% off` : `${money(o.discount_value, currency)} off`}
-                          {" "}· min order {money(o.min_order_value, currency)}
-                        </p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${isSelected ? "bg-chili text-white" : "bg-paper text-ink/60"}`}>
-                        {isSelected ? (<span className="inline-flex items-center gap-1"><CheckCheck size={13} /> Applied</span>) : "Select"}
-                      </span>
-                    </button>
-                  );
-                })}
-
-                {campaign && (
-                  campaignFeedback ? (
-                    <div className="text-left border border-herb bg-herb/5 rounded-card p-3.5 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-ink text-sm flex items-center gap-1.5"><Video size={15} /> {campaign.title}</p>
-                        <p className="text-xs text-herb mt-0.5">
-                          {campaign.discount_type === "percent" ? `${campaign.discount_value}% off` : `${money(campaign.discount_value, currency)} off`} applied
-                        </p>
-                      </div>
-                      <button onClick={onRemoveCampaign} className="text-xs font-semibold text-clay flex-shrink-0">Remove</button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={onOpenCampaign}
-                      className="text-left border border-ink/10 bg-white rounded-card p-3.5 flex items-center justify-between gap-3"
-                    >
-                      <div>
-                        <p className="font-semibold text-ink text-sm flex items-center gap-1.5"><Video size={15} /> {campaign.title}</p>
-                        <p className="text-xs text-clay mt-0.5">
-                          {campaign.description || "Share a quick video review for a discount on this order."}
-                        </p>
-                      </div>
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-paper text-ink/60 flex-shrink-0">Participate</span>
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="px-4 mt-5">
             <div className="bg-white border border-ink/10 rounded-card p-4 text-sm">
-              <Row label="Subtotal" value={money(subtotal, currency)} />
-              {discount > 0 && <Row label="Discount" value={"− " + money(discount, currency)} />}
-              {taxBreakdown.map((t) => (
-                <Row key={t.name} label={`${t.name} (${t.type === "fixed" ? "flat" : t.percent + "%"})`} value={money(t.amount, currency)} />
-              ))}
-              {platformFee > 0 && <Row label="Platform fee" value={money(platformFee, currency)} />}
-              <div className="border-t border-ink/10 my-2" />
-              <Row label="Total" value={money(total, currency)} bold />
+              <Row label="Subtotal" value={money(subtotal, currency)} bold />
             </div>
+            <p className="text-xs text-clay mt-2.5 px-1">
+              Tax and any discount are added to your final bill after your food is served — you'll
+              have a chance to get a discount then too.
+            </p>
           </div>
 
           <button
-            onClick={onCheckout}
-            className="fixed bottom-5 left-4 right-4 bg-chili text-white rounded-card px-5 py-3.5 font-semibold"
+            disabled={placing}
+            onClick={onPlaceOrder}
+            className="fixed bottom-5 left-4 right-4 bg-chili disabled:opacity-60 text-white rounded-card px-5 py-3.5 font-semibold"
           >
-            Proceed to checkout · {money(total, currency)}
+            {placing ? "Sending to kitchen..." : `Send order to kitchen · ${money(subtotal, currency)}`}
           </button>
         </>
       )}
@@ -848,44 +774,250 @@ function Row({ label, value, bold }) {
   );
 }
 
-// ---------- Checkout ----------
+// ---------- Order tracking + post-meal bill (the whole journey after
+// "Send order to kitchen", in one polling screen) ----------
 
-function CheckoutScreen({ currency, instagramUrl, subtotal, discount, discountLabel, taxBreakdown, platformFee, total, payMethod, setPayMethod, payment, paidClicked, setPaidClicked, placing, onBack, onPlaceOrder }) {
-  const canPlace = payMethod === "cash" || (payMethod === "online_upi" && paidClicked);
+const STAGES = [
+  { key: "pending", label: "Received", icon: CheckCircle2 },
+  { key: "preparing", label: "Preparing", icon: Flame },
+  { key: "served", label: "Served", icon: Truck },
+];
+
+function OrderTrackingScreen({ initialOrder, restaurant, table, offers, campaign, payment, sessionId, onNewOrder }) {
+  const [order, setOrder] = useState(initialOrder);
+  const [billOpen, setBillOpen] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/orders/${order.order_number}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.order) setOrder((prev) => ({ ...prev, ...data.order }));
+      } catch {
+        // network hiccup — just try again next tick
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [order.order_number]);
+
+  const stageIndex = STAGES.findIndex((s) => s.key === order.status);
+  const isServedOrLater = ["served", "completed"].includes(order.status);
+  const billFinalized = !!order.payment_method;
+
+  // The moment the food is marked served, offer the bill/discount step
+  // automatically (only once, and only if it hasn't been finalized yet).
+  useEffect(() => {
+    if (isServedOrLater && !billFinalized) setBillOpen(true);
+  }, [isServedOrLater, billFinalized]);
+
+  if (isServedOrLater && !billFinalized && billOpen) {
+    return (
+      <BillScreen
+        order={order}
+        restaurant={restaurant}
+        offers={offers}
+        campaign={campaign}
+        payment={payment}
+        sessionId={sessionId}
+        onFinalized={(updatedOrder) => { setOrder((prev) => ({ ...prev, ...updatedOrder })); setBillOpen(false); }}
+      />
+    );
+  }
+
+  if (billFinalized) {
+    return (
+      <ReceiptScreen order={order} restaurant={restaurant} table={table} payment={payment} onNewOrder={onNewOrder} />
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col items-center px-6 pt-14 pb-10 text-center">
+      <div className="w-16 h-16 rounded-full bg-herb/15 flex items-center justify-center mb-4 animate-rise-in">
+        <CheckCircle2 size={34} className="text-herb" />
+      </div>
+      <h1 className="font-display text-2xl font-bold text-ink">Order sent to the kitchen!</h1>
+      <p className="text-ink/60 mt-1.5">#{order.order_number} · Table {table.table_number}</p>
+
+      <div className="mt-8 w-full max-w-sm">
+        <div className="flex items-center justify-between">
+          {STAGES.map((s, i) => {
+            const Icon = s.icon;
+            const reached = i <= (stageIndex < 0 ? 0 : stageIndex);
+            return (
+              <div key={s.key} className="flex-1 flex flex-col items-center relative">
+                {i > 0 && (
+                  <div className={`absolute top-4 right-1/2 w-full h-0.5 ${reached ? "bg-herb" : "bg-ink/10"}`} style={{ zIndex: 0 }} />
+                )}
+                <div
+                  className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center border-2 ${
+                    reached ? "bg-herb border-herb text-white" : "bg-white border-ink/15 text-ink/30"
+                  }`}
+                >
+                  <Icon size={16} />
+                </div>
+                <p className={`text-xs mt-2 font-medium ${reached ? "text-ink" : "text-ink/40"}`}>{s.label}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-8 bg-white border border-ink/10 rounded-card p-5 w-full max-w-sm text-left">
+        <p className="text-xs font-semibold text-ink mb-2">Your order</p>
+        <div className="grid gap-1 text-sm">
+          {order.items?.map((it) => (
+            <div key={it.name + it.quantity} className="flex justify-between text-ink/70">
+              <span>{it.name} × {it.quantity}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-xs text-clay mt-6 max-w-xs">
+        Sit back and relax — once your food is on its way to the table, you'll see the bill here,
+        with a chance to get a discount for sharing quick feedback.
+      </p>
+    </div>
+  );
+}
+
+// ---------- Bill screen (shown once food is served): pick an offer or
+// complete a campaign for a discount, then choose how to pay ----------
+
+function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, onFinalized }) {
+  const [step, setStep] = useState("offers"); // offers -> pay
+  const [selectedOfferId, setSelectedOfferId] = useState(null);
+  const [campaignFeedback, setCampaignFeedback] = useState(null);
+  const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  const [payMethod, setPayMethod] = useState(payment.cash_enabled ? "cash" : "online_upi");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const currency = restaurant.currency;
+  const subtotal = order.subtotal;
+  const eligibleOffers = useMemo(() => offers.filter((o) => subtotal >= o.min_order_value), [offers, subtotal]);
+  const selectedOffer = eligibleOffers.find((o) => o.id === selectedOfferId) || null;
+
+  const roundMoney = (n) => Math.round(n);
+  const discount = roundMoney(
+    campaignFeedback
+      ? campaign.discount_type === "percent" ? (subtotal * campaign.discount_value) / 100 : campaign.discount_value
+      : selectedOffer
+      ? selectedOffer.discount_type === "percent" ? (subtotal * selectedOffer.discount_value) / 100 : selectedOffer.discount_value
+      : 0
+  );
+  // (Tax and total are intentionally not previewed here -- the server
+  // computes the trusted final figures at finalize time; the customer
+  // sees those on the receipt screen right after confirming.)
+
+  async function submitBill() {
+    setError("");
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/orders/${order.order_number}/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          offerId: campaignFeedback ? null : selectedOffer?.id || null,
+          campaignId: campaignFeedback ? campaign.id : null,
+          campaignFeedback: campaignFeedback || null,
+          paymentMethod: payMethod,
+          sessionId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not finalize your bill.");
+      onFinalized(data.order);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="min-h-screen pb-32">
-      <div className="bg-white border-b border-ink/10 px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={onBack} className="text-ink/60 flex items-center gap-1 hover:text-ink transition-colors"><ChevronLeft size={18} /> Back</button>
-        <h1 className="font-display text-lg font-bold text-ink">Checkout</h1>
+      <div className="bg-white border-b border-ink/10 px-4 py-4 sticky top-0 z-10">
+        <h1 className="font-display text-lg font-bold text-ink">Your food has arrived!</h1>
+        <p className="text-xs text-clay mt-0.5">#{order.order_number} · Table {order.table_number}</p>
       </div>
 
       <div className="px-4 pt-5">
-        <div className="bg-white border border-ink/10 rounded-card p-4 text-sm mb-5">
-          <Row label="Subtotal" value={money(subtotal, currency)} />
-          {discount > 0 && <Row label={discountLabel || "Discount"} value={"− " + money(discount, currency)} />}
-          {taxBreakdown.map((t) => (
-            <Row key={t.name} label={`${t.name} (${t.type === "fixed" ? "flat" : t.percent + "%"})`} value={money(t.amount, currency)} />
-          ))}
-          {platformFee > 0 && <Row label="Platform fee" value={money(platformFee, currency)} />}
-          <div className="border-t border-ink/10 my-2" />
-          <Row label="Total to pay" value={money(total, currency)} bold />
-        </div>
+        {(eligibleOffers.length > 0 || campaign) && (
+          <div className="mb-5">
+            <p className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Tag size={15} /> Want a discount on this bill?</p>
+            <p className="text-xs text-clay mb-2 -mt-1">Pick at most one — offer or campaign, not both.</p>
+            <div className="grid gap-2">
+              {eligibleOffers.map((o) => {
+                const isSelected = selectedOfferId === o.id && !campaignFeedback;
+                return (
+                  <button
+                    key={o.id}
+                    onClick={() => { setSelectedOfferId(isSelected ? null : o.id); setCampaignFeedback(null); }}
+                    className={`text-left border rounded-card p-3.5 flex items-center justify-between gap-3 transition-colors ${
+                      isSelected ? "border-chili bg-chili/5" : "border-ink/10 bg-white"
+                    }`}
+                  >
+                    <div>
+                      <p className="font-semibold text-ink text-sm">{o.title}</p>
+                      <p className="text-xs text-clay mt-0.5">
+                        {o.discount_type === "percent" ? `${o.discount_value}% off` : `${money(o.discount_value, currency)} off`}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${isSelected ? "bg-chili text-white" : "bg-paper text-ink/60"}`}>
+                      {isSelected ? (<span className="inline-flex items-center gap-1"><CheckCheck size={13} /> Applied</span>) : "Select"}
+                    </span>
+                  </button>
+                );
+              })}
 
-        {instagramUrl && (
-          
-           <a href={instagramUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 border border-ink/10 bg-white rounded-card p-3.5 mb-5 text-sm font-semibold text-ink hover:border-chili/40 transition-colors"
-          >
-            <Instagram size={18} className="text-chili" />
-            Follow us on Instagram
-          </a>
+              {campaign && (
+                campaignFeedback ? (
+                  <div className="text-left border border-herb bg-herb/5 rounded-card p-3.5 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-ink text-sm flex items-center gap-1.5">
+                        {campaign.media_type === "audio" ? <Mic size={15} /> : <Video size={15} />} {campaign.title}
+                      </p>
+                      <p className="text-xs text-herb mt-0.5">
+                        {campaign.discount_type === "percent" ? `${campaign.discount_value}% off` : `${money(campaign.discount_value, currency)} off`} applied
+                      </p>
+                    </div>
+                    <button onClick={() => setCampaignFeedback(null)} className="text-xs font-semibold text-clay flex-shrink-0">Remove</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setCampaignModalOpen(true)}
+                    className="text-left border border-ink/10 bg-white rounded-card p-3.5 flex items-center justify-between gap-3"
+                  >
+                    <div>
+                      <p className="font-semibold text-ink text-sm flex items-center gap-1.5">
+                        {campaign.media_type === "audio" ? <Mic size={15} /> : <Video size={15} />} {campaign.title}
+                      </p>
+                      <p className="text-xs text-clay mt-0.5">
+                        {campaign.description || "Share quick feedback about your meal for a discount."}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-paper text-ink/60 flex-shrink-0">Participate</span>
+                  </button>
+                )
+              )}
+            </div>
+          </div>
         )}
 
+        <div className="bg-white border border-ink/10 rounded-card p-4 text-sm mb-5">
+          {order.items?.map((it) => (
+            <Row key={it.name} label={`${it.name} × ${it.quantity}`} value={money(it.unit_price * it.quantity, currency)} />
+          ))}
+          <div className="border-t border-ink/10 my-2" />
+          <Row label="Subtotal" value={money(subtotal, currency)} />
+          {discount > 0 && <Row label="Discount" value={"− " + money(discount, currency)} />}
+          <p className="text-xs text-clay mt-1">Tax and any platform fee are added to your final receipt.</p>
+        </div>
+
         <p className="text-sm font-semibold text-ink mb-2">How would you like to pay?</p>
-        <div className="grid gap-2.5">
+        <div className="grid gap-2.5 mb-4">
           {payment.cash_enabled && (
             <button
               onClick={() => setPayMethod("cash")}
@@ -895,12 +1027,11 @@ function CheckoutScreen({ currency, instagramUrl, subtotal, discount, discountLa
             >
               <div>
                 <p className="font-semibold text-ink text-sm">Pay with cash</p>
-                <p className="text-xs text-clay">Pay at the table when your order arrives.</p>
+                <p className="text-xs text-clay">Pay at the table now.</p>
               </div>
               <Banknote size={22} className="text-herb flex-shrink-0" />
             </button>
           )}
-
           {payment.online_enabled && (
             <button
               onClick={() => setPayMethod("online_upi")}
@@ -917,131 +1048,138 @@ function CheckoutScreen({ currency, instagramUrl, subtotal, discount, discountLa
           )}
         </div>
 
-        {payMethod === "online_upi" && (
-          <div className="mt-4 bg-white border border-ink/10 rounded-card p-5 text-center">
-            {payment.phonepe_qr_image_url ? (
-              <img src={payment.phonepe_qr_image_url} alt="UPI QR" className="w-44 h-44 mx-auto rounded-lg" />
-            ) : (
-              <div className="w-44 h-44 mx-auto rounded-lg bg-paper border border-dashed border-ink/20 flex items-center justify-center text-clay text-xs px-4">
-                Restaurant hasn't uploaded a payment QR yet — ask staff for their UPI ID.
-              </div>
-            )}
-            <p className="mt-3 text-sm font-semibold text-ink">Pay {money(total, currency)}</p>
-            {payment.upi_id && <p className="text-xs text-clay mt-0.5">UPI ID: {payment.upi_id}</p>}
-            <label className="mt-4 flex items-start gap-2 text-left text-xs text-clay">
-              <input
-                type="checkbox"
-                checked={paidClicked}
-                onChange={(e) => setPaidClicked(e.target.checked)}
-                className="mt-0.5"
-              />
-              I've completed the payment via UPI. I understand the restaurant will confirm receipt.
-            </label>
-          </div>
-        )}
+        {error && <p className="text-xs text-chili-dark font-medium mb-3">{error}</p>}
       </div>
 
       <button
-        disabled={!canPlace || placing}
-        onClick={onPlaceOrder}
-        className="fixed bottom-5 left-4 right-4 bg-chili disabled:bg-ink/20 text-white rounded-card px-5 py-3.5 font-semibold"
+        disabled={submitting}
+        onClick={submitBill}
+        className="fixed bottom-5 left-4 right-4 bg-chili disabled:opacity-60 text-white rounded-card px-5 py-3.5 font-semibold"
       >
-        {placing ? "Placing order..." : `Place order · ${money(total, currency)}`}
+        {submitting ? "Preparing your bill..." : "Confirm & see final bill"}
       </button>
+
+      {campaignModalOpen && campaign && (
+        <CampaignModal
+          campaign={campaign}
+          onClose={() => setCampaignModalOpen(false)}
+          onDone={(feedback) => {
+            setCampaignFeedback(feedback);
+            setSelectedOfferId(null);
+            setCampaignModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-// ---------- Confirmation ----------
+// ---------- Receipt (after the bill is finalized: pay online now, or wait
+// for staff to confirm cash) ----------
 
-function ConfirmationScreen({ order, restaurant, table, onNewOrder }) {
-  const [status, setStatus] = useState(order.status);
+function ReceiptScreen({ order, restaurant, table, payment, onNewOrder }) {
+  const [marking, setMarking] = useState(false);
+  const currency = restaurant.currency;
+  const isDone = order.status === "completed";
 
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/orders/${order.order_number}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.order) setStatus(data.order.status);
-      } catch {
-        // network hiccup — just try again next tick
-      }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [order.order_number]);
-
-  const statusLabels = {
-    pending: "Pending",
-    completed: "Completed",
-  };
+  async function markPaid() {
+    setMarking(true);
+    try {
+      await fetch(`/api/orders/${order.order_number}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerMarkedPaid: true }),
+      });
+    } finally {
+      setMarking(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen flex flex-col items-center px-6 pt-16 pb-10 text-center">
+    <div className="min-h-screen flex flex-col items-center px-6 pt-14 pb-10 text-center">
       <div className="w-16 h-16 rounded-full bg-herb/15 flex items-center justify-center mb-4 animate-rise-in">
         <CheckCircle2 size={34} className="text-herb" />
       </div>
-      <h1 className="font-display text-2xl font-bold text-ink">Order placed successfully!</h1>
-      <p className="text-ink/60 mt-1.5">Your order has been sent to the restaurant.</p>
+      <h1 className="font-display text-2xl font-bold text-ink">
+        {isDone ? "All done — thank you!" : "Here's your bill"}
+      </h1>
+      <p className="text-ink/60 mt-1.5">#{order.order_number} · Table {table.table_number}</p>
 
       <div className="mt-7 bg-white border border-ink/10 rounded-card p-5 w-full max-w-sm text-left">
-        <div className="flex items-center justify-between">
-          <p className="font-semibold text-ink">#{order.order_number}</p>
-          <span className="text-xs font-semibold bg-turmeric/20 text-chili-dark px-2.5 py-1 rounded-full">
-            {statusLabels[status] || status}
-          </span>
-        </div>
-        <p className="text-xs text-clay mt-1">Table {table.table_number} · {restaurant.name}</p>
-        <div className="border-t border-ink/10 my-3" />
         <div className="grid gap-1 text-sm">
           {order.items?.map((it) => (
             <div key={it.name + it.quantity} className="flex justify-between text-ink/70">
               <span>{it.name} × {it.quantity}</span>
-              <span>{money(it.unit_price * it.quantity, restaurant.currency)}</span>
+              <span>{money(it.unit_price * it.quantity, currency)}</span>
             </div>
           ))}
         </div>
         <div className="border-t border-ink/10 my-3" />
         <div className="grid gap-1 text-sm text-ink/70">
           {order.discount_amount > 0 && (
-            <div className="flex justify-between">
-              <span>Discount</span>
-              <span>− {money(order.discount_amount, restaurant.currency)}</span>
-            </div>
+            <div className="flex justify-between"><span>Discount</span><span>− {money(order.discount_amount, currency)}</span></div>
           )}
           {(order.tax_breakdown || []).map((t) => (
             <div key={t.name} className="flex justify-between">
               <span>{t.name} ({t.type === "fixed" ? "flat" : `${t.percent}%`})</span>
-              <span>{money(t.amount, restaurant.currency)}</span>
+              <span>{money(t.amount, currency)}</span>
             </div>
           ))}
           {order.platform_fee > 0 && (
-            <div className="flex justify-between">
-              <span>Platform fee</span>
-              <span>{money(order.platform_fee, restaurant.currency)}</span>
-            </div>
+            <div className="flex justify-between"><span>Platform fee</span><span>{money(order.platform_fee, currency)}</span></div>
           )}
         </div>
         <div className="border-t border-ink/10 my-3" />
         <div className="flex justify-between font-bold text-ink">
           <span>Total</span>
-          <span>{money(order.total, restaurant.currency)}</span>
+          <span>{money(order.total, currency)}</span>
         </div>
-        <p className="text-xs text-clay mt-2 capitalize">
-          Payment: {order.payment_method.replace("_", " ")}
-          {order.payment_method === "online_upi" ? " (pending confirmation)" : ""}
-        </p>
       </div>
 
-      <button onClick={onNewOrder} className="mt-8 text-chili font-semibold text-sm">
-        Order something else
-      </button>
+      {!isDone && order.payment_method === "online_upi" && order.payment_status !== "paid" && (
+        <div className="mt-5 bg-white border border-ink/10 rounded-card p-5 w-full max-w-sm text-center">
+          {payment.phonepe_qr_image_url ? (
+            <img src={payment.phonepe_qr_image_url} alt="UPI QR" className="w-44 h-44 mx-auto rounded-lg" />
+          ) : (
+            <div className="w-44 h-44 mx-auto rounded-lg bg-paper border border-dashed border-ink/20 flex items-center justify-center text-clay text-xs px-4">
+              Restaurant hasn't uploaded a payment QR yet — ask staff for their UPI ID.
+            </div>
+          )}
+          <p className="mt-3 text-sm font-semibold text-ink">Pay {money(order.total, currency)}</p>
+          {payment.upi_id && <p className="text-xs text-clay mt-0.5">UPI ID: {payment.upi_id}</p>}
+          {order.payment_status !== "pending_confirmation" ? (
+            <button
+              onClick={markPaid}
+              disabled={marking}
+              className="mt-4 w-full bg-herb disabled:opacity-60 text-white font-semibold py-2.5 rounded-card text-sm"
+            >
+              {marking ? "Marking..." : "I've completed the payment via UPI"}
+            </button>
+          ) : (
+            <p className="text-xs text-herb font-semibold mt-4">Marked as paid — waiting for staff to confirm.</p>
+          )}
+        </div>
+      )}
+
+      {!isDone && order.payment_method === "cash" && (
+        <p className="text-sm text-clay mt-5 max-w-xs">Please pay the staff at your table with cash.</p>
+      )}
+
+      {isDone && (
+        <button onClick={onNewOrder} className="mt-8 text-chili font-semibold text-sm">
+          Order something else
+        </button>
+      )}
+
+      {!isDone && (
+        <p className="text-xs text-clay mt-6">This page updates automatically once staff confirm your payment.</p>
+      )}
     </div>
   );
 }
 
-// ---------- Campaign (video feedback / Instagram) — completed at checkout,
-// discount applies to THIS order immediately ----------
+// ---------- Campaign (video or audio feedback, completed after the meal;
+// discount applies to THIS order's final bill) ----------
 
 function CampaignModal({ campaign, onClose, onDone }) {
   const [step, setStep] = useState("terms"); // terms -> feedback
@@ -1049,55 +1187,53 @@ function CampaignModal({ campaign, onClose, onDone }) {
   const [agreedInsta, setAgreedInsta] = useState(false);
   const [rating, setRating] = useState(5);
   const [text, setText] = useState("");
-  const [videoFile, setVideoFile] = useState(null);
-  const [videoPreviewName, setVideoPreviewName] = useState("");
+  const [mediaFile, setMediaFile] = useState(null);
+  const [mediaPreviewName, setMediaPreviewName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200MB
+  const isAudio = campaign.media_type === "audio";
+  const MAX_MEDIA_BYTES = 200 * 1024 * 1024; // 200MB
 
-  function handleVideo(e) {
+  function handleMedia(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_VIDEO_BYTES) {
-      setError(`That video is too large (max 200MB). Please choose a shorter clip or lower quality.`);
+    if (file.size > MAX_MEDIA_BYTES) {
+      setError(`That file is too large (max 200MB). Please choose a shorter clip or lower quality.`);
       e.target.value = "";
       return;
     }
     setError("");
-    setVideoPreviewName(file.name);
+    setMediaPreviewName(file.name);
     const reader = new FileReader();
-    reader.onload = () => setVideoFile(reader.result);
+    reader.onload = () => setMediaFile(reader.result);
     reader.readAsDataURL(file);
   }
 
   async function submit() {
     setError("");
-    if (campaign.requires_video && !videoFile) {
-      setError("Please attach a short video to continue.");
+    if (campaign.requires_video && !mediaFile) {
+      setError(isAudio ? "Please attach a short voice note to continue." : "Please attach a short video to continue.");
       return;
     }
     setSubmitting(true);
     try {
-      let videoUrl = "";
-      if (videoFile) {
+      let mediaUrl = "";
+      if (mediaFile) {
         const upRes = await fetch("/api/uploads", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dataUrl: videoFile, maxBytes: MAX_VIDEO_BYTES }),
+          body: JSON.stringify({ dataUrl: mediaFile, maxBytes: MAX_MEDIA_BYTES }),
         });
         const upData = await upRes.json();
         if (!upRes.ok) throw new Error(upData.error);
-        videoUrl = upData.url;
+        mediaUrl = upData.url;
       }
 
-      // Not submitted to the server yet — collected here and sent together
-      // with the order itself, so the discount and the review are created
-      // atomically once the customer actually places the order.
       onDone({
         rating,
         textFeedback: text,
-        videoUrl,
+        mediaUrl,
         agreedToSubmitContent: agreedTerms,
         agreedToInstagramUse: campaign.allow_instagram_repost ? agreedInsta : undefined,
       });
@@ -1161,14 +1297,24 @@ function CampaignModal({ campaign, onClose, onDone }) {
             />
 
             <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
-              {campaign.requires_video ? "Upload a short video" : "Upload a photo or video (optional)"}
+              {campaign.requires_video
+                ? (isAudio ? "Record a short voice note" : "Upload a short video")
+                : (isAudio ? "Add a voice note (optional)" : "Upload a photo or video (optional)")}
             </p>
             <label className="flex items-center gap-3 border border-dashed border-ink/25 rounded-card p-3 cursor-pointer">
               <span className="w-10 h-10 rounded-lg bg-clay-light flex items-center justify-center flex-shrink-0">
-                {videoPreviewName ? <CheckCircle2 size={18} className="text-herb" /> : <Video size={18} className="text-clay" />}
+                {mediaPreviewName ? (
+                  <CheckCircle2 size={18} className="text-herb" />
+                ) : isAudio ? (
+                  <Mic size={18} className="text-clay" />
+                ) : (
+                  <Video size={18} className="text-clay" />
+                )}
               </span>
-              <span className="text-xs text-clay truncate">{videoPreviewName || "Tap to record or choose a video"}</span>
-              <input type="file" accept="video/*" onChange={handleVideo} className="hidden" />
+              <span className="text-xs text-clay truncate">
+                {mediaPreviewName || (isAudio ? "Tap to record or choose a voice note" : "Tap to record or choose a video")}
+              </span>
+              <input type="file" accept={isAudio ? "audio/*" : "video/*"} onChange={handleMedia} className="hidden" />
             </label>
 
             {error && <p className="text-xs text-chili-dark font-medium mt-3">{error}</p>}

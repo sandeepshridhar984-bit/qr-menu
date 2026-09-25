@@ -79,6 +79,8 @@ export default function TableEntryPage({ params }) {
         logo_image_url: restaurant.logo_image_url,
         cover_image_url: restaurant.cover_image_url,
         tagline: restaurant.tagline,
+        instagram_url: restaurant.instagram_url,
+        banner_messages: JSON.parse(restaurant.banner_messages || "[]"),
         currency: restaurant.currency,
         welcome_animation_enabled: !!restaurant.welcome_animation_enabled,
         welcome_sound_enabled: !!restaurant.welcome_sound_enabled,
