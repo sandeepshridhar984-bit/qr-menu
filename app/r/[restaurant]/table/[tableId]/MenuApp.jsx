@@ -379,7 +379,7 @@ function MenuScreen({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search the menu..."
-            className="w-full bg-paper border border-ink/10 rounded-full pl-9 pr-4 py-2.5 text-sm outline-none focus:border-herb"
+            className="w-full bg-paper border border-ink/10 rounded-full pl-9 pr-4 py-2.5 text-sm outline-none focus:border-sprout"
           />
         </div>
 
@@ -390,7 +390,7 @@ function MenuScreen({
               onClick={() => setActiveCategory(c.id)}
               className={`whitespace-nowrap text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
                 activeCategory === c.id && !query && filters.length === 0
-                  ? "bg-herb text-white border-herb"
+                  ? "bg-sprout text-white border-sprout"
                   : "border-ink/15 text-ink/60"
               }`}
             >
@@ -445,7 +445,7 @@ function MenuScreen({
               <button
                 key={item.id}
                 onClick={() => onOpenItem(item)}
-                className="flex-shrink-0 w-36 text-left bg-white border border-ink/10 rounded-2xl overflow-hidden hover:border-herb/40 hover:shadow-md transition-all"
+                className="flex-shrink-0 w-36 text-left bg-white border border-ink/10 rounded-2xl overflow-hidden hover:border-sprout/40 hover:shadow-md transition-all"
               >
                 <div className="relative">
                   {item.image_url ? (
@@ -453,7 +453,7 @@ function MenuScreen({
                   ) : (
                     <div className="w-36 h-24"><Monogram name={item.name} size="md" className="rounded-none" /></div>
                   )}
-                  <span className="absolute top-1.5 left-1.5 text-[10px] font-bold text-white bg-herb px-1.5 py-0.5 rounded-full">NEW</span>
+                  <span className="absolute top-1.5 left-1.5 text-[10px] font-bold text-white bg-sprout px-1.5 py-0.5 rounded-full">NEW</span>
                 </div>
                 <div className="p-2.5">
                   <p className="font-semibold text-ink text-xs truncate">{item.name}</p>
@@ -484,7 +484,7 @@ function MenuScreen({
       {cartCount > 0 && (
         <button
           onClick={onOpenCart}
-          className="fixed bottom-5 left-4 right-4 bg-herb text-white rounded-full px-5 py-3.5 flex items-center justify-between shadow-lg font-semibold z-30"
+          className="fixed bottom-5 left-4 right-4 bg-sprout text-white rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-lg font-semibold z-30"
         >
           <span>{cartCount} item{cartCount > 1 ? "s" : ""} in cart</span>
           <span>{money(cartTotal, restaurant.currency)} · View cart</span>
@@ -494,13 +494,14 @@ function MenuScreen({
   );
 }
 
-// The whole "green dome" header: brand row + headline on white, then a
-// curved herb-green panel holding the category chips, with the featured
-// item's photo floating so it spills out past the curve onto the white
-// area below (name / price / dots live there). Whatever the restaurant
-// adds in the dashboard -- new categories, new dishes -- flows straight
-// into this via the `categories` / `allItems` props, nothing here is
-// hardcoded.
+// The "green dome" header, redrawn to match the reference recording pixel
+// for pixel: white top band with the logo/name and headline, then a
+// solid-green curved panel (the exact green sampled from the video, not
+// the dashboard's muted "herb") holding the category chips, with the
+// featured item's photo floating so it spills out past the curve onto the
+// white area below it. Everything here still comes from the restaurant's
+// live categories / menu items -- add or edit a dish in the dashboard and
+// it shows up here immediately, nothing is hardcoded.
 function HeroSection({ restaurant, table, categories, activeCategory, setActiveCategory, allItems, currency, onOpenItem, cartCount, onOpenCart }) {
   return (
     <div>
@@ -508,7 +509,7 @@ function HeroSection({ restaurant, table, categories, activeCategory, setActiveC
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             {restaurant.logo_image_url ? (
-              <img src={restaurant.logo_image_url} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-herb/15 flex-shrink-0" />
+              <img src={restaurant.logo_image_url} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-sprout/15 flex-shrink-0" />
             ) : (
               <Monogram name={restaurant.name} size="sm" className="w-10 h-10 rounded-full flex-shrink-0" />
             )}
@@ -530,13 +531,14 @@ function HeroSection({ restaurant, table, categories, activeCategory, setActiveC
           </button>
         </div>
 
-        <h1 className="font-display text-[22px] font-bold text-herb leading-[1.2] mt-4 whitespace-pre-line">
+        <h1 className="font-display text-[22px] font-bold text-sprout-dark leading-[1.2] mt-4 whitespace-pre-line">
           {restaurant.tagline || "Fresh flavors,\nmade just for you"}
         </h1>
       </div>
 
       <div className="relative mt-4">
-        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-herb to-[#2c4f34] rounded-b-[45%] overflow-hidden">
+        {/* The exact solid green from the reference recording, not a gradient */}
+        <div className="absolute inset-x-0 top-0 h-40 bg-sprout rounded-b-[45%] overflow-hidden">
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
           <div className="absolute top-6 -left-8 w-24 h-24 rounded-full bg-white/5" />
         </div>
@@ -554,7 +556,7 @@ function HeroSection({ restaurant, table, categories, activeCategory, setActiveC
                   >
                     <span
                       className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold bg-white transition-all ${
-                        active ? "text-herb shadow-md scale-105 ring-2 ring-white" : "text-herb/70"
+                        active ? "text-sprout shadow-md scale-105 ring-2 ring-white" : "text-sprout/70"
                       }`}
                     >
                       {c.name.charAt(0).toUpperCase()}
@@ -575,11 +577,13 @@ function HeroSection({ restaurant, table, categories, activeCategory, setActiveC
   );
 }
 
-// The floating featured-dish carousel underneath the category row -- a
-// product photo on a soft circle, its name/price on the white area below
-// (since the photo spills past the curve), with dots to page through a
-// handful of picks. Tapping it opens the same item detail sheet as
-// tapping a regular card.
+// The featured-dish carousel, rebuilt to match the actual motion in the
+// reference recording: each product genuinely SLIDES across (the current
+// photo glides out to the left while the next one glides in from the
+// right along a single track), not a fade/cross-dissolve. Name, price and
+// the dot indicator crossfade in step with the currently-centered photo.
+// Tapping the visible photo opens the same item detail page as tapping a
+// regular menu card.
 function HeroCarousel({ items, currency, onOpenItem }) {
   const picks = useMemo(() => {
     const popular = items.filter((it) => it.is_popular && it.image_url);
@@ -596,7 +600,7 @@ function HeroCarousel({ items, currency, onOpenItem }) {
 
   useEffect(() => {
     if (picks.length < 2) return;
-    const t = setInterval(() => setIndex((i) => (i + 1) % picks.length), 4200);
+    const t = setInterval(() => setIndex((i) => (i + 1) % picks.length), 3600);
     return () => clearInterval(t);
   }, [picks.length]);
 
@@ -606,28 +610,44 @@ function HeroCarousel({ items, currency, onOpenItem }) {
 
   return (
     <div className="flex flex-col items-center -mt-1 pb-1">
-      <button onClick={() => onOpenItem(item)} className="relative w-40 h-40 rounded-full bg-white/20 flex items-center justify-center transition-transform active:scale-95 overflow-hidden">
-        {item.image_url ? (
-          <img
-            src={item.image_url}
-            alt={item.name}
-            className="w-32 h-32 object-cover rounded-full shadow-xl ring-4 ring-white/40"
-          />
-        ) : (
-          <div className="w-32 h-32 rounded-full overflow-hidden">
-            <Monogram name={item.name} size="lg" className="text-3xl" />
-          </div>
-        )}
+      {/* Sliding track: one photo per slot, shifted by -index * 100% with a
+          smooth transform transition -- this is the actual slide, not a
+          fade, so the outgoing photo visibly glides past the incoming one. */}
+      <button
+        onClick={() => onOpenItem(item)}
+        className="relative w-40 h-40 rounded-full bg-white/20 overflow-hidden transition-transform active:scale-95"
+      >
+        <div
+          className="absolute inset-0 flex transition-transform duration-500 ease-in-out"
+          style={{ transform: `translateX(-${index * 100}%)` }}
+        >
+          {picks.map((p) => (
+            <div key={p.id} className="w-40 h-40 flex-shrink-0 flex items-center justify-center">
+              {p.image_url ? (
+                <img
+                  src={p.image_url}
+                  alt={p.name}
+                  className="w-32 h-32 object-cover rounded-full shadow-xl ring-4 ring-white/40"
+                />
+              ) : (
+                <div className="w-32 h-32 rounded-full overflow-hidden">
+                  <Monogram name={p.name} size="lg" className="text-3xl" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </button>
-      <span className="mt-3 text-ink font-display font-bold text-base">{item.name}</span>
-      <span className="text-herb text-sm font-semibold mt-0.5">{money(price, currency)}</span>
+
+      <span key={`name-${index}`} className="mt-3 text-ink font-display font-bold text-base animate-pop-in">{item.name}</span>
+      <span key={`price-${index}`} className="text-sprout-dark text-sm font-semibold mt-0.5 animate-pop-in">{money(price, currency)}</span>
 
       {picks.length > 1 && (
         <div className="flex justify-center gap-1.5 mt-3">
           {picks.map((_, i) => (
             <span
               key={i}
-              className={`h-1.5 rounded-full transition-all ${i === index ? "w-5 bg-herb" : "w-1.5 bg-ink/15"}`}
+              className={`h-1.5 rounded-full transition-all duration-300 ${i === index ? "w-5 bg-sprout" : "w-1.5 bg-ink/15"}`}
             />
           ))}
         </div>
@@ -693,6 +713,14 @@ function Badge({ label, tone }) {
 }
 
 // ---------- Item Detail ----------
+//
+// Rebuilt as a full-screen page (not a bottom sheet) because that's what
+// the reference recording actually shows: tapping a dish replaces the
+// whole screen -- white header, back arrow, "Details" title, no dimmed
+// backdrop behind it -- and it enters with a quick slide-in, the same way
+// a native app pushes a new screen. The green "added to order" card is
+// the one moment that *does* sit over a dimmed backdrop, matching the
+// video's confirmation popup exactly.
 
 const NOTE_OPTIONS = ["Less spicy", "No onions", "Extra sauce"];
 
@@ -712,141 +740,137 @@ function ItemDetail({ item, currency, onClose, onAdd }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-ink/50 flex items-end" onClick={onClose}>
-      <div
-        className="relative bg-paper w-full rounded-t-[32px] max-h-[92vh] overflow-y-auto animate-rise-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Back / close + centered "Details" title, like the reference's detail page */}
-        <div className="sticky top-0 z-10 bg-paper/95 backdrop-blur-md flex items-center justify-center px-4 pt-4 pb-2">
-          <button
-            onClick={onClose}
-            className="absolute left-4 w-9 h-9 rounded-full bg-white shadow flex items-center justify-center text-ink"
-          >
-            <ChevronLeft size={19} />
-          </button>
-          <span className="text-sm font-bold text-ink">Details</span>
-          <span className="absolute right-4 w-9 h-9 rounded-full bg-white shadow flex items-center justify-center text-ink">
-            <VegDot veg={item.is_veg} />
-          </span>
-        </div>
-
-        {/* Product image floating on a soft green circle, like the reference's hero shot */}
-        <div className="pt-2 pb-3 flex justify-center bg-gradient-to-b from-herb/15 to-transparent">
-          <div className="relative w-52 h-52 rounded-full bg-herb/15 flex items-center justify-center overflow-hidden">
-            {item.image_url ? (
-              <img src={item.image_url} alt={item.name} className="w-44 h-44 object-cover rounded-full shadow-xl" />
-            ) : (
-              <div className="w-44 h-44 rounded-full overflow-hidden">
-                <Monogram name={item.name} size="lg" className="text-4xl" />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="px-5 pt-2 pb-32">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="font-display text-2xl font-bold text-ink leading-tight">{item.name}</h2>
-            <span className="font-display text-xl font-bold text-herb flex-shrink-0">{money(price, currency)}</span>
-          </div>
-          <p className="text-ink/60 mt-1.5 text-sm">{item.description}</p>
-
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
-            {item.discounted_price ? (
-              <span className="text-sm text-clay line-through">{money(item.price, currency)}</span>
-            ) : null}
-            {item.is_popular ? <Badge label="Popular" tone="turmeric" /> : null}
-            <Badge label={`${item.prep_time_minutes} min`} tone="chili" />
-          </div>
-
-          {allergens.length > 0 && (
-            <p className="text-xs text-clay mt-3">Allergens: {allergens.join(", ")}</p>
-          )}
-
-          {/* "Size Options"-style row from the reference, reused here for customization chips */}
-          <div className="mt-6">
-            <p className="text-sm font-semibold text-ink mb-2.5">Options</p>
-            <div className="flex gap-3">
-              {NOTE_OPTIONS.map((s) => {
-                const active = note === s;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setNote(active ? "" : s)}
-                    className="flex flex-col items-center gap-1.5 flex-1"
-                  >
-                    <span
-                      className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${
-                        active ? "bg-herb border-herb text-white" : "bg-white border-ink/10 text-ink/50"
-                      }`}
-                    >
-                      <Tag size={16} />
-                    </span>
-                    <span className={`text-[11px] font-semibold text-center leading-tight ${active ? "text-ink" : "text-ink/45"}`}>
-                      {s}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Or type your own note, e.g. no coriander"
-              className="mt-3 w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-herb"
-            />
-          </div>
-        </div>
-
-        {/* Sticky quantity + Add to order bar, pinned like the reference's bottom bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-paper border-t border-ink/10 px-5 py-4 flex items-center gap-3">
-          <div className="flex items-center border-2 border-ink/10 rounded-full flex-shrink-0">
-            <button
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
-              className="w-10 h-10 flex items-center justify-center text-ink/70"
-            >
-              <Minus size={16} />
-            </button>
-            <span className="w-6 text-center font-bold text-ink">{qty}</span>
-            <button
-              onClick={() => setQty((q) => q + 1)}
-              className="w-10 h-10 flex items-center justify-center text-ink/70"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
-          <button
-            onClick={handleAdd}
-            className="flex-1 bg-herb text-white font-semibold py-3.5 rounded-full transition-transform active:scale-[0.98]"
-          >
-            {`Add to Order · ${money(price * qty, currency)}`}
-          </button>
-        </div>
-
-        {/* Success confirmation, styled after the reference's green "thank you" card */}
-        {justAdded && (
-          <div
-            className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center px-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-gradient-to-b from-herb to-[#2c4f34] rounded-3xl px-6 py-8 text-center max-w-xs w-full animate-rise-in shadow-2xl">
-              <div className="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center mx-auto mb-3">
-                <CheckCircle2 size={30} className="text-white" />
-              </div>
-              <p className="font-display text-lg font-bold text-white">Thank you for your order!</p>
-              <p className="text-sm text-white/75 mt-1">
-                {item.name} × {qty} has been added.
-              </p>
-              <button
-                onClick={confirmAdd}
-                className="mt-5 w-full bg-white text-herb font-semibold py-3 rounded-full"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
+    <div className="fixed inset-0 z-40 bg-paper overflow-y-auto animate-slide-in-right">
+      {/* Back / close + centered "Details" title, exactly like the reference's header */}
+      <div className="sticky top-0 z-10 bg-paper/95 backdrop-blur-md flex items-center justify-center px-4 pt-4 pb-2">
+        <button
+          onClick={onClose}
+          className="absolute left-4 w-9 h-9 rounded-full bg-white shadow flex items-center justify-center text-ink"
+        >
+          <ChevronLeft size={19} />
+        </button>
+        <span className="text-sm font-bold text-ink">Details</span>
+        <span className="absolute right-4 w-9 h-9 rounded-full bg-white shadow flex items-center justify-center text-ink">
+          <VegDot veg={item.is_veg} />
+        </span>
       </div>
+
+      {/* Product image floating on the reference's solid green circle */}
+      <div className="pt-2 pb-3 flex justify-center">
+        <div className="relative w-52 h-52 rounded-full bg-sprout/15 flex items-center justify-center overflow-hidden">
+          {item.image_url ? (
+            <img src={item.image_url} alt={item.name} className="w-44 h-44 object-cover rounded-full shadow-xl" />
+          ) : (
+            <div className="w-44 h-44 rounded-full overflow-hidden">
+              <Monogram name={item.name} size="lg" className="text-4xl" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-5 pt-2 pb-32">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="font-display text-2xl font-bold text-ink leading-tight">{item.name}</h2>
+          <span className="font-display text-xl font-bold text-sprout-dark flex-shrink-0">{money(price, currency)}</span>
+        </div>
+        <p className="text-ink/60 mt-1.5 text-sm">{item.description}</p>
+
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          {item.discounted_price ? (
+            <span className="text-sm text-clay line-through">{money(item.price, currency)}</span>
+          ) : null}
+          {item.is_popular ? <Badge label="Popular" tone="turmeric" /> : null}
+          <Badge label={`${item.prep_time_minutes} min`} tone="chili" />
+        </div>
+
+        {allergens.length > 0 && (
+          <p className="text-xs text-clay mt-3">Allergens: {allergens.join(", ")}</p>
+        )}
+
+        {/* "Size Options"-style row from the reference, reused here for customization chips */}
+        <div className="mt-6">
+          <p className="text-sm font-semibold text-ink mb-2.5">Options</p>
+          <div className="flex gap-3">
+            {NOTE_OPTIONS.map((s) => {
+              const active = note === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setNote(active ? "" : s)}
+                  className="flex flex-col items-center gap-1.5 flex-1"
+                >
+                  <span
+                    className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${
+                      active ? "bg-sprout border-sprout text-white" : "bg-white border-ink/10 text-ink/50"
+                    }`}
+                  >
+                    <Tag size={16} />
+                  </span>
+                  <span className={`text-[11px] font-semibold text-center leading-tight ${active ? "text-ink" : "text-ink/45"}`}>
+                    {s}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Or type your own note, e.g. no coriander"
+            className="mt-3 w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-sprout"
+          />
+        </div>
+      </div>
+
+      {/* Sticky quantity + Add to order bar, pinned like the reference's bottom bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-paper border-t border-ink/10 px-5 py-4 flex items-center gap-3">
+        <div className="flex items-center border-2 border-ink/10 rounded-full flex-shrink-0">
+          <button
+            onClick={() => setQty((q) => Math.max(1, q - 1))}
+            className="w-10 h-10 flex items-center justify-center text-ink/70"
+          >
+            <Minus size={16} />
+          </button>
+          <span className="w-6 text-center font-bold text-ink">{qty}</span>
+          <button
+            onClick={() => setQty((q) => q + 1)}
+            className="w-10 h-10 flex items-center justify-center text-ink/70"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+        <button
+          onClick={handleAdd}
+          className="flex-1 bg-sprout text-white font-semibold py-3.5 rounded-2xl transition-transform active:scale-[0.98]"
+        >
+          {`Add to Order · ${money(price * qty, currency)}`}
+        </button>
+      </div>
+
+      {/* Success confirmation -- the one place a dimmed backdrop appears,
+          exactly matching the reference's green "thank you" popup */}
+      {justAdded && (
+        <div
+          className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center px-8"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="bg-sprout rounded-3xl px-6 py-8 text-center max-w-xs w-full animate-pop-in shadow-2xl">
+            <div className="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center mx-auto mb-3">
+              <CheckCircle2 size={30} className="text-white" />
+            </div>
+            <p className="font-display text-lg font-bold text-white">Thank you for your order!</p>
+            <p className="text-sm text-white/75 mt-1">
+              {item.name} × {qty} has been added.
+            </p>
+            <button
+              onClick={confirmAdd}
+              className="mt-5 w-full bg-white text-sprout-dark font-semibold py-3 rounded-full"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
