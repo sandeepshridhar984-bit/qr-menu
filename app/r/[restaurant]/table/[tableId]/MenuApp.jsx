@@ -352,81 +352,69 @@ function MenuScreen({
   filters, toggleFilter, activeCategory, setActiveCategory, offers,
   onOpenItem, onOpenAssistant, cartCount, cartTotal, onOpenCart,
 }) {
-  return (
-    <div className="pb-28">
-      <div className="bg-white/90 backdrop-blur-md border-b border-ink/10 sticky top-0 z-20 shadow-sm">
-        <div className="px-4 pt-4 pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-display text-lg font-bold text-ink leading-tight">{restaurant.name}</p>
-              <p className="text-xs text-clay">Table {table.table_number}</p>
-            </div>
-            {restaurant.logo_image_url ? (
-              <img src={restaurant.logo_image_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
-            ) : (
-              <Monogram name={restaurant.name} size="sm" className="w-9 h-9 text-sm" />
-            )}
-          </div>
+  const activeCategoryName = categories.find((c) => c.id === activeCategory)?.name;
 
+  return (
+    <div className="pb-28 bg-paper">
+      <HeroSection
+        restaurant={restaurant}
+        table={table}
+        categories={categories}
+        activeCategory={activeCategory}
+        setActiveCategory={setActiveCategory}
+        allItems={allItems}
+        currency={restaurant.currency}
+        onOpenItem={onOpenItem}
+        cartCount={cartCount}
+        onOpenCart={onOpenCart}
+      />
+
+      {restaurant.banner_messages?.length > 0 && <ScrollingBanner messages={restaurant.banner_messages} />}
+
+      {/* Slim sticky search + filter bar -- stays reachable once the hero scrolls away */}
+      <div className="bg-white/95 backdrop-blur-md border-b border-ink/10 sticky top-0 z-20 px-4 py-3 shadow-sm">
+        <div className="relative">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-clay" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search the menu..."
-            className="mt-3 w-full bg-paper border border-ink/10 rounded-card px-4 py-2.5 text-sm outline-none focus:border-chili"
+            className="w-full bg-paper border border-ink/10 rounded-full pl-9 pr-4 py-2.5 text-sm outline-none focus:border-herb"
           />
-
-          <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => toggleFilter(f.key)}
-                className={`whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                  filters.includes(f.key)
-                    ? "bg-chili text-white border-chili"
-                    : "border-ink/15 text-ink/70"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
         </div>
 
-        {!query && filters.length === 0 && (
-          <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-3 pt-1">
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setActiveCategory(c.id)}
-                className="flex flex-col items-center gap-1.5 flex-shrink-0 w-16"
-              >
-                <span
-                  className={`w-14 h-14 rounded-full flex items-center justify-center text-base font-bold border-2 transition-all ${
-                    activeCategory === c.id
-                      ? "bg-herb border-herb text-white shadow-md scale-105"
-                      : "bg-white border-ink/10 text-ink/60"
-                  }`}
-                >
-                  {c.name.charAt(0).toUpperCase()}
-                </span>
-                <span
-                  className={`text-[10.5px] font-semibold text-center leading-tight truncate w-full ${
-                    activeCategory === c.id ? "text-ink" : "text-ink/45"
-                  }`}
-                >
-                  {c.name}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="mt-2.5 flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setActiveCategory(c.id)}
+              className={`whitespace-nowrap text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
+                activeCategory === c.id && !query && filters.length === 0
+                  ? "bg-herb text-white border-herb"
+                  : "border-ink/15 text-ink/60"
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => toggleFilter(f.key)}
+              className={`whitespace-nowrap text-[11px] font-medium px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
+                filters.includes(f.key)
+                  ? "bg-chili text-white border-chili"
+                  : "border-ink/15 text-ink/60"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
-
-      {restaurant.banner_messages?.length > 0 && <ScrollingBanner messages={restaurant.banner_messages} />}
-
-      {!query && filters.length === 0 && (
-        <HeroCarousel items={allItems} currency={restaurant.currency} onOpenItem={onOpenItem} />
-      )}
 
       {offers.length > 0 && (
         <div className="px-4 pt-4">
@@ -457,7 +445,7 @@ function MenuScreen({
               <button
                 key={item.id}
                 onClick={() => onOpenItem(item)}
-                className="flex-shrink-0 w-36 text-left bg-white border border-ink/10 rounded-2xl overflow-hidden hover:border-chili/40 hover:shadow-md transition-all"
+                className="flex-shrink-0 w-36 text-left bg-white border border-ink/10 rounded-2xl overflow-hidden hover:border-herb/40 hover:shadow-md transition-all"
               >
                 <div className="relative">
                   {item.image_url ? (
@@ -465,7 +453,7 @@ function MenuScreen({
                   ) : (
                     <div className="w-36 h-24"><Monogram name={item.name} size="md" className="rounded-none" /></div>
                   )}
-                  <span className="absolute top-1.5 left-1.5 text-[10px] font-bold text-white bg-chili px-1.5 py-0.5 rounded-full">NEW</span>
+                  <span className="absolute top-1.5 left-1.5 text-[10px] font-bold text-white bg-herb px-1.5 py-0.5 rounded-full">NEW</span>
                 </div>
                 <div className="p-2.5">
                   <p className="font-semibold text-ink text-xs truncate">{item.name}</p>
@@ -477,21 +465,26 @@ function MenuScreen({
         </div>
       )}
 
-      <div className="px-4 pt-5 grid gap-3">
-        {items.length === 0 && (
-          <p className="text-center text-clay text-sm py-10">
-            No dishes match right now — try a different search or filter.
-          </p>
-        )}
-        {items.map((item) => (
-          <MenuItemCard key={item.id} item={item} currency={restaurant.currency} onOpen={() => onOpenItem(item)} isNew={isNewItem(item)} />
-        ))}
+      <div className="px-4 pt-5">
+        <h2 className="font-display text-lg font-bold text-ink mb-3">
+          {query || filters.length > 0 ? "Results" : activeCategoryName || "Menu"}
+        </h2>
+        <div className="grid gap-3">
+          {items.length === 0 && (
+            <p className="text-center text-clay text-sm py-10">
+              No dishes match right now — try a different search or filter.
+            </p>
+          )}
+          {items.map((item) => (
+            <MenuItemCard key={item.id} item={item} currency={restaurant.currency} onOpen={() => onOpenItem(item)} isNew={isNewItem(item)} />
+          ))}
+        </div>
       </div>
 
       {cartCount > 0 && (
         <button
           onClick={onOpenCart}
-          className="fixed bottom-5 left-4 right-4 bg-chili text-white rounded-card px-5 py-3.5 flex items-center justify-between shadow-lg font-semibold z-30"
+          className="fixed bottom-5 left-4 right-4 bg-herb text-white rounded-full px-5 py-3.5 flex items-center justify-between shadow-lg font-semibold z-30"
         >
           <span>{cartCount} item{cartCount > 1 ? "s" : ""} in cart</span>
           <span>{money(cartTotal, restaurant.currency)} · View cart</span>
@@ -501,10 +494,92 @@ function MenuScreen({
   );
 }
 
-// A big rotating "featured dish" panel at the top of the menu -- product
-// sitting on a soft colored blob with its name/price below and dots to
-// page through a handful of picks. Tapping it opens the same item detail
-// sheet as tapping a regular card.
+// The whole "green dome" header: brand row + headline on white, then a
+// curved herb-green panel holding the category chips, with the featured
+// item's photo floating so it spills out past the curve onto the white
+// area below (name / price / dots live there). Whatever the restaurant
+// adds in the dashboard -- new categories, new dishes -- flows straight
+// into this via the `categories` / `allItems` props, nothing here is
+// hardcoded.
+function HeroSection({ restaurant, table, categories, activeCategory, setActiveCategory, allItems, currency, onOpenItem, cartCount, onOpenCart }) {
+  return (
+    <div>
+      <div className="bg-paper px-5 pt-5 pb-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {restaurant.logo_image_url ? (
+              <img src={restaurant.logo_image_url} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-herb/15 flex-shrink-0" />
+            ) : (
+              <Monogram name={restaurant.name} size="sm" className="w-10 h-10 rounded-full flex-shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className="font-display font-bold text-ink text-sm leading-tight truncate">{restaurant.name}</p>
+              <p className="text-clay text-[11px]">Table {table.table_number}</p>
+            </div>
+          </div>
+          <button
+            onClick={onOpenCart}
+            className="relative w-10 h-10 rounded-full bg-white border border-ink/10 flex items-center justify-center text-ink shadow-sm flex-shrink-0"
+          >
+            <ShoppingCart size={17} />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-chili text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <h1 className="font-display text-[22px] font-bold text-herb leading-[1.2] mt-4 whitespace-pre-line">
+          {restaurant.tagline || "Fresh flavors,\nmade just for you"}
+        </h1>
+      </div>
+
+      <div className="relative mt-4">
+        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-herb to-[#2c4f34] rounded-b-[45%] overflow-hidden">
+          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
+          <div className="absolute top-6 -left-8 w-24 h-24 rounded-full bg-white/5" />
+        </div>
+
+        <div className="relative pt-4 px-5">
+          {categories.length > 0 && (
+            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
+              {categories.map((c) => {
+                const active = activeCategory === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setActiveCategory(c.id)}
+                    className="flex flex-col items-center gap-1.5 flex-shrink-0 w-16"
+                  >
+                    <span
+                      className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold bg-white transition-all ${
+                        active ? "text-herb shadow-md scale-105 ring-2 ring-white" : "text-herb/70"
+                      }`}
+                    >
+                      {c.name.charAt(0).toUpperCase()}
+                    </span>
+                    <span className={`text-[10px] font-semibold text-center leading-tight truncate w-full ${active ? "text-white" : "text-white/70"}`}>
+                      {c.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <HeroCarousel items={allItems} currency={currency} onOpenItem={onOpenItem} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The floating featured-dish carousel underneath the category row -- a
+// product photo on a soft circle, its name/price on the white area below
+// (since the photo spills past the curve), with dots to page through a
+// handful of picks. Tapping it opens the same item detail sheet as
+// tapping a regular card.
 function HeroCarousel({ items, currency, onOpenItem }) {
   const picks = useMemo(() => {
     const popular = items.filter((it) => it.is_popular && it.image_url);
@@ -530,43 +605,33 @@ function HeroCarousel({ items, currency, onOpenItem }) {
   const price = item.discounted_price || item.price;
 
   return (
-    <div className="px-4 pt-4">
-      <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-b from-herb to-[#2c4f34] px-5 pt-5 pb-5">
-        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
-        <p className="relative text-white/70 text-[11px] font-bold uppercase tracking-[0.12em]">Today's pick</p>
-        <h2 className="relative text-white font-display text-xl font-bold leading-tight mt-1 max-w-[75%]">
-          Freshly made,<br />just for you
-        </h2>
-
-        <button onClick={() => onOpenItem(item)} className="relative w-full flex flex-col items-center mt-2 group">
-          <span className="w-40 h-40 rounded-full bg-white/15 flex items-center justify-center transition-transform group-active:scale-95 overflow-hidden">
-            {item.image_url ? (
-              <img
-                src={item.image_url}
-                alt={item.name}
-                className="w-32 h-32 object-cover rounded-full shadow-lg ring-4 ring-white/10"
-              />
-            ) : (
-              <div className="w-32 h-32 rounded-full overflow-hidden">
-                <Monogram name={item.name} size="lg" className="text-3xl" />
-              </div>
-            )}
-          </span>
-          <span className="mt-4 text-white font-semibold text-base">{item.name}</span>
-          <span className="text-white/80 text-sm mt-0.5">{money(price, currency)}</span>
-        </button>
-
-        {picks.length > 1 && (
-          <div className="relative flex justify-center gap-1.5 mt-4">
-            {picks.map((_, i) => (
-              <span
-                key={i}
-                className={`h-1.5 rounded-full transition-all ${i === index ? "w-5 bg-white" : "w-1.5 bg-white/35"}`}
-              />
-            ))}
+    <div className="flex flex-col items-center -mt-1 pb-1">
+      <button onClick={() => onOpenItem(item)} className="relative w-40 h-40 rounded-full bg-white/20 flex items-center justify-center transition-transform active:scale-95 overflow-hidden">
+        {item.image_url ? (
+          <img
+            src={item.image_url}
+            alt={item.name}
+            className="w-32 h-32 object-cover rounded-full shadow-xl ring-4 ring-white/40"
+          />
+        ) : (
+          <div className="w-32 h-32 rounded-full overflow-hidden">
+            <Monogram name={item.name} size="lg" className="text-3xl" />
           </div>
         )}
-      </div>
+      </button>
+      <span className="mt-3 text-ink font-display font-bold text-base">{item.name}</span>
+      <span className="text-herb text-sm font-semibold mt-0.5">{money(price, currency)}</span>
+
+      {picks.length > 1 && (
+        <div className="flex justify-center gap-1.5 mt-3">
+          {picks.map((_, i) => (
+            <span
+              key={i}
+              className={`h-1.5 rounded-full transition-all ${i === index ? "w-5 bg-herb" : "w-1.5 bg-ink/15"}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -640,7 +705,10 @@ function ItemDetail({ item, currency, onClose, onAdd }) {
 
   function handleAdd() {
     setJustAdded(true);
-    setTimeout(() => onAdd(qty, note), 850);
+  }
+
+  function confirmAdd() {
+    onAdd(qty, note);
   }
 
   return (
@@ -649,22 +717,27 @@ function ItemDetail({ item, currency, onClose, onAdd }) {
         className="relative bg-paper w-full rounded-t-[32px] max-h-[92vh] overflow-y-auto animate-rise-in"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Back / close */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink"
-        >
-          <ChevronLeft size={19} />
-        </button>
-        <span className="absolute top-4 left-1/2 -translate-x-1/2 z-10 text-sm font-bold text-ink/70">Details</span>
+        {/* Back / close + centered "Details" title, like the reference's detail page */}
+        <div className="sticky top-0 z-10 bg-paper/95 backdrop-blur-md flex items-center justify-center px-4 pt-4 pb-2">
+          <button
+            onClick={onClose}
+            className="absolute left-4 w-9 h-9 rounded-full bg-white shadow flex items-center justify-center text-ink"
+          >
+            <ChevronLeft size={19} />
+          </button>
+          <span className="text-sm font-bold text-ink">Details</span>
+          <span className="absolute right-4 w-9 h-9 rounded-full bg-white shadow flex items-center justify-center text-ink">
+            <VegDot veg={item.is_veg} />
+          </span>
+        </div>
 
-        {/* Product image floating on a colored blob, like a hero shot */}
-        <div className="pt-16 pb-3 flex justify-center bg-gradient-to-b from-herb/12 to-transparent">
-          <div className="relative w-48 h-48 rounded-full bg-herb/15 flex items-center justify-center overflow-hidden">
+        {/* Product image floating on a soft green circle, like the reference's hero shot */}
+        <div className="pt-2 pb-3 flex justify-center bg-gradient-to-b from-herb/15 to-transparent">
+          <div className="relative w-52 h-52 rounded-full bg-herb/15 flex items-center justify-center overflow-hidden">
             {item.image_url ? (
-              <img src={item.image_url} alt={item.name} className="w-40 h-40 object-cover rounded-full shadow-xl" />
+              <img src={item.image_url} alt={item.name} className="w-44 h-44 object-cover rounded-full shadow-xl" />
             ) : (
-              <div className="w-40 h-40 rounded-full overflow-hidden">
+              <div className="w-44 h-44 rounded-full overflow-hidden">
                 <Monogram name={item.name} size="lg" className="text-4xl" />
               </div>
             )}
@@ -674,12 +747,11 @@ function ItemDetail({ item, currency, onClose, onAdd }) {
         <div className="px-5 pt-2 pb-32">
           <div className="flex items-start justify-between gap-3">
             <h2 className="font-display text-2xl font-bold text-ink leading-tight">{item.name}</h2>
-            <VegDot veg={item.is_veg} />
+            <span className="font-display text-xl font-bold text-herb flex-shrink-0">{money(price, currency)}</span>
           </div>
           <p className="text-ink/60 mt-1.5 text-sm">{item.description}</p>
 
           <div className="flex items-center gap-2 mt-3 flex-wrap">
-            <span className="font-bold text-xl text-herb">{money(price, currency)}</span>
             {item.discounted_price ? (
               <span className="text-sm text-clay line-through">{money(item.price, currency)}</span>
             ) : null}
@@ -691,9 +763,9 @@ function ItemDetail({ item, currency, onClose, onAdd }) {
             <p className="text-xs text-clay mt-3">Allergens: {allergens.join(", ")}</p>
           )}
 
-          {/* "Size options"-style row, reused here for customization chips */}
+          {/* "Size Options"-style row from the reference, reused here for customization chips */}
           <div className="mt-6">
-            <p className="text-sm font-semibold text-ink mb-2.5">Customize (optional)</p>
+            <p className="text-sm font-semibold text-ink mb-2.5">Options</p>
             <div className="flex gap-3">
               {NOTE_OPTIONS.map((s) => {
                 const active = note === s;
@@ -744,28 +816,33 @@ function ItemDetail({ item, currency, onClose, onAdd }) {
             </button>
           </div>
           <button
-            disabled={justAdded}
             onClick={handleAdd}
-            className="flex-1 bg-herb disabled:opacity-70 text-white font-semibold py-3.5 rounded-full transition-transform active:scale-[0.98]"
+            className="flex-1 bg-herb text-white font-semibold py-3.5 rounded-full transition-transform active:scale-[0.98]"
           >
-            {justAdded ? "Added!" : `Add to order · ${money(price * qty, currency)}`}
+            {`Add to Order · ${money(price * qty, currency)}`}
           </button>
         </div>
 
-        {/* Success confirmation, mirroring the reference's "added to order" moment */}
+        {/* Success confirmation, styled after the reference's green "thank you" card */}
         {justAdded && (
           <div
             className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center px-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-white rounded-3xl px-6 py-7 text-center max-w-xs w-full animate-rise-in shadow-2xl">
-              <div className="w-14 h-14 rounded-full bg-herb/15 flex items-center justify-center mx-auto mb-3">
-                <CheckCircle2 size={30} className="text-herb" />
+            <div className="bg-gradient-to-b from-herb to-[#2c4f34] rounded-3xl px-6 py-8 text-center max-w-xs w-full animate-rise-in shadow-2xl">
+              <div className="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle2 size={30} className="text-white" />
               </div>
-              <p className="font-display text-lg font-bold text-ink">Added to your order!</p>
-              <p className="text-sm text-ink/60 mt-1">
-                {item.name} × {qty}
+              <p className="font-display text-lg font-bold text-white">Thank you for your order!</p>
+              <p className="text-sm text-white/75 mt-1">
+                {item.name} × {qty} has been added.
               </p>
+              <button
+                onClick={confirmAdd}
+                className="mt-5 w-full bg-white text-herb font-semibold py-3 rounded-full"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
