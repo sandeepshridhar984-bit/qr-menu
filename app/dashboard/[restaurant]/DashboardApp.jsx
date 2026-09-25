@@ -440,7 +440,7 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
         : "",
     ].join("");
 
-    win.document.write(`
+    const html = `
       <html>
         <head>
           <title>Order #${order.order_number}</title>
@@ -489,10 +489,24 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
           }
         </body>
       </html>
-    `);
-    win.document.close();
-    win.focus();
-    win.print();
+    `;
+
+    // Loading the receipt via document.write() into an already-opened blank
+    // popup is fragile -- some browsers (Edge included) leave the popup
+    // permanently blank if that write gets interrupted for any reason, with
+    // no error shown. Writing the HTML to a real Blob URL and pointing the
+    // window at that instead is a normal page load, so it isn't affected by
+    // that document.write quirk.
+    const blob = new Blob([html], { type: "text/html" });
+    const blobUrl = URL.createObjectURL(blob);
+    win.location.href = blobUrl;
+    win.onload = () => {
+      win.focus();
+      win.print();
+    };
+    // Free the memory behind the blob URL once the popup has had plenty of
+    // time to load it -- keeping it around forever isn't necessary.
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   }
 
   return (
