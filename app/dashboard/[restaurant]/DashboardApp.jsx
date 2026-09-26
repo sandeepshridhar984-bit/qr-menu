@@ -468,24 +468,6 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
           <hr />
           <p>Payment: ${order.payment_method ? order.payment_method.replace("_", " ") + " (" + order.payment_status.replace("_", " ") + ")" : "not yet billed"}</p>
           ${order.customer_note ? `<p>Note: ${order.customer_note}</p>` : ""}
-          ${
-            // The QR/UPI block always prints here, even if "Pay online" is
-            // switched off for the customer's phone at checkout -- staff can
-            // still hand over a printed/on-screen receipt with the QR so the
-            // customer can pay by scanning it directly.
-            paymentSettings?.phonepe_qr_image_url || paymentSettings?.upi_id
-              ? `
-          <hr />
-          <p style="text-align:center;font-weight:bold;">Pay via UPI</p>
-          ${
-            paymentSettings?.phonepe_qr_image_url
-              ? `<img src="${paymentSettings.phonepe_qr_image_url}" style="width:150px;height:150px;display:block;margin:8px auto;" />`
-              : ""
-          }
-          ${paymentSettings?.upi_id ? `<p style="text-align:center;">${paymentSettings.upi_id}</p>` : ""}
-          `
-              : ""
-          }
         </body>
       </html>
     `;
