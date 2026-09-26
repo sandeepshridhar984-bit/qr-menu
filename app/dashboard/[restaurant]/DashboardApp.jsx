@@ -7,7 +7,7 @@ import { parseDbDate } from "@/lib/clientDates";
 import {
   Eye, Bell, CreditCard, Check, Camera, Video, Star, QrCode,
   Smartphone, RefreshCw, ExternalLink, Printer, Upload, ChefHat,
-  Mic, Plus, Trash2, Sparkles,
+  Mic, Plus, Trash2, Sparkles, ChevronUp, ChevronDown,
 } from "lucide-react";
 
 const TABS = ["Orders", "Menu", "Offers", "Campaigns", "Taxes", "Tables & QR", "Customer View", "Payment settings", "Billing"];
@@ -679,6 +679,30 @@ function MenuTab({ restaurant, categories, setCategories, items, setItems, askCo
     if (res.ok) setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, available: item.available ? 0 : 1 } : i)));
   }
 
+  // Quick reorder within a category -- swaps this item's sort_order with
+  // its neighbor's, so the client can decide what shows first without
+  // typing numbers for every dish.
+  async function moveItem(item, direction) {
+    const catItems = items
+      .filter((i) => i.category_id === item.category_id)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const idx = catItems.findIndex((i) => i.id === item.id);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= catItems.length) return;
+    const other = catItems[swapIdx];
+    const aOrder = item.sort_order ?? 0;
+    const bOrder = other.sort_order ?? 0;
+    const newAOrder = bOrder;
+    const newBOrder = aOrder === bOrder ? aOrder + (direction === "up" ? -1 : 1) : aOrder;
+
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, sort_order: newAOrder } : i.id === other.id ? { ...i, sort_order: newBOrder } : i)));
+
+    await Promise.all([
+      fetch(`/api/admin/${restaurant.slug}/menu-items/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort_order: newAOrder }) }),
+      fetch(`/api/admin/${restaurant.slug}/menu-items/${other.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort_order: newBOrder }) }),
+    ]);
+  }
+
   function saveItemLocally(item) {
     setItems((prev) => (prev.some((i) => i.id === item.id) ? prev.map((i) => (i.id === item.id ? item : i)) : [...prev, item]));
     setEditingItem(null);
@@ -698,7 +722,7 @@ function MenuTab({ restaurant, categories, setCategories, items, setItems, askCo
 
       <div className="grid gap-7">
         {categories.map((cat) => {
-          const catItems = items.filter((i) => i.category_id === cat.id);
+          const catItems = items.filter((i) => i.category_id === cat.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
           return (
             <div key={cat.id}>
               <div className="flex items-center justify-between mb-2.5">
@@ -719,8 +743,16 @@ function MenuTab({ restaurant, categories, setCategories, items, setItems, askCo
                 <p className="text-xs text-clay">No items yet.</p>
               ) : (
                 <div className="grid gap-2">
-                  {catItems.map((item) => (
+                  {catItems.map((item, idx) => (
                     <Card key={item.id} className="p-3.5 flex items-center gap-3">
+                      <div className="flex flex-col flex-shrink-0">
+                        <button onClick={() => moveItem(item, "up")} disabled={idx === 0} className="text-ink/40 hover:text-ink disabled:opacity-20 disabled:hover:text-ink/40 -mb-1">
+                          <ChevronUp size={15} />
+                        </button>
+                        <button onClick={() => moveItem(item, "down")} disabled={idx === catItems.length - 1} className="text-ink/40 hover:text-ink disabled:opacity-20 disabled:hover:text-ink/40">
+                          <ChevronDown size={15} />
+                        </button>
+                      </div>
                       {item.image_url ? (
                         <img src={item.image_url} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" alt="" />
                       ) : (
@@ -732,6 +764,12 @@ function MenuTab({ restaurant, categories, setCategories, items, setItems, askCo
                           {money(item.discounted_price || item.price, restaurant.currency)}
                           {item.discounted_price ? <span className="line-through ml-1.5">{money(item.price, restaurant.currency)}</span> : null}
                         </p>
+                        {(!!item.is_recommended || !!item.is_new_pick) && (
+                          <div className="flex gap-1.5 mt-1">
+                            {!!item.is_recommended && <span className="text-[10px] font-semibold text-herb bg-herb/10 px-1.5 py-0.5 rounded-full">Chef's Pick</span>}
+                            {!!item.is_new_pick && <span className="text-[10px] font-semibold text-chili-dark bg-chili/10 px-1.5 py-0.5 rounded-full">New</span>}
+                          </div>
+                        )}
                       </div>
                       <label className="flex items-center gap-1.5 text-xs text-clay">
                         <input type="checkbox" checked={!!item.available} onChange={() => toggleAvailable(item)} /> Available
@@ -775,6 +813,8 @@ function ItemFormModal({ restaurant, categoryId, categories, item, onClose, onSa
     prep_time_minutes: item?.prep_time_minutes ?? 15,
     is_popular: item?.is_popular ?? 0,
     is_recommended: item?.is_recommended ?? 0,
+    is_new_pick: item?.is_new_pick ?? 0,
+    sort_order: item?.sort_order ?? "",
     tags: (item?.tags || []).join(", "),
     allergens: (JSON.parse(item?.allergens || "[]") || []).join(", "),
     image_url: item?.image_url || "",
@@ -821,6 +861,8 @@ function ItemFormModal({ restaurant, categoryId, categories, item, onClose, onSa
         prep_time_minutes: Number(form.prep_time_minutes) || 15,
         is_popular: !!form.is_popular,
         is_recommended: !!form.is_recommended,
+        is_new_pick: !!form.is_new_pick,
+        sort_order: form.sort_order === "" ? null : Number(form.sort_order),
         tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
         allergens: form.allergens.split(",").map((t) => t.trim()).filter(Boolean),
         image_url: imageUrl,
@@ -902,12 +944,24 @@ function ItemFormModal({ restaurant, categoryId, categories, item, onClose, onSa
 
           <Field label="Allergens (comma-separated)"><Input value={form.allergens} onChange={(v) => setForm({ ...form, allergens: v })} placeholder="nuts, dairy" /></Field>
 
-          <div className="flex gap-5">
+          <Field label="Display order">
+            <Input type="number" value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: v })} placeholder="Leave blank to add at the end" />
+          </Field>
+          <p className="text-xs text-clay -mt-2">
+            Controls where this dish appears in its category, and its position in the Chef's Pick and New
+            rows below. Lower numbers show first.
+          </p>
+
+          <div className="flex flex-col gap-2.5 border border-ink/10 rounded-card p-3.5 bg-white">
+            <p className="text-xs font-semibold text-ink -mb-0.5">Where this dish shows up on the customer menu</p>
             <label className="flex items-center gap-2 text-sm text-ink">
-              <input type="checkbox" checked={!!form.is_popular} onChange={(e) => setForm({ ...form, is_popular: e.target.checked })} /> Popular badge
+              <input type="checkbox" checked={!!form.is_popular} onChange={(e) => setForm({ ...form, is_popular: e.target.checked })} /> Popular badge (on the item card)
             </label>
             <label className="flex items-center gap-2 text-sm text-ink">
-              <input type="checkbox" checked={!!form.is_recommended} onChange={(e) => setForm({ ...form, is_recommended: e.target.checked })} /> Recommended
+              <input type="checkbox" checked={!!form.is_recommended} onChange={(e) => setForm({ ...form, is_recommended: e.target.checked })} /> Feature in the "Chef's Pick" carousel at the top
+            </label>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" checked={!!form.is_new_pick} onChange={(e) => setForm({ ...form, is_new_pick: e.target.checked })} /> Show in the "New on the menu" row
             </label>
           </div>
         </div>
@@ -1403,11 +1457,8 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
   const [coverPreview, setCoverPreview] = useState(restaurant.cover_image_url || null);
   const [tagline, setTagline] = useState(restaurant.tagline || "");
   const [instagramUrl, setInstagramUrl] = useState(restaurant.instagram_url || "");
-  // Tracks whether each field already has a saved value, so the button can
-  // read "Update" instead of "Save" once there's something to update —
-  // rather than always saying "Save" even the second, third, tenth time.
-  const [taglineSavedOnce, setTaglineSavedOnce] = useState(!!restaurant.tagline);
-  const [instagramSavedOnce, setInstagramSavedOnce] = useState(!!restaurant.instagram_url);
+  const [googleReviewUrl, setGoogleReviewUrl] = useState(restaurant.google_review_url || "");
+  const [offerSuccessMessage, setOfferSuccessMessage] = useState(restaurant.offer_success_message || "");
   const [bannerMessages, setBannerMessages] = useState(() => {
     try { return JSON.parse(restaurant.banner_messages || "[]"); } catch { return []; }
   });
@@ -1455,7 +1506,6 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
       if (!res.ok) throw new Error(data.error || "Could not save.");
       onRestaurantUpdate?.(data.restaurant);
       setProfileSaved(true);
-      setTaglineSavedOnce(!!tagline);
       setReloadKey((k) => k + 1);
       setTimeout(() => setProfileSaved(false), 2000);
     } catch (e) {
@@ -1475,7 +1525,46 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
       if (!res.ok) throw new Error(data.error || "Could not save.");
       onRestaurantUpdate?.(data.restaurant);
       setProfileSaved(true);
-      setInstagramSavedOnce(!!instagramUrl);
+      setReloadKey((k) => k + 1);
+      setTimeout(() => setProfileSaved(false), 2000);
+    } catch (e) {
+      setProfileError(e.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  async function saveGoogleReview() {
+    setSavingProfile(true);
+    setProfileError("");
+    try {
+      const res = await fetch(`/api/admin/${restaurant.slug}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ google_review_url: googleReviewUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save.");
+      onRestaurantUpdate?.(data.restaurant);
+      setProfileSaved(true);
+      setReloadKey((k) => k + 1);
+      setTimeout(() => setProfileSaved(false), 2000);
+    } catch (e) {
+      setProfileError(e.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  async function saveOfferSuccessMessage() {
+    setSavingProfile(true);
+    setProfileError("");
+    try {
+      const res = await fetch(`/api/admin/${restaurant.slug}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offer_success_message: offerSuccessMessage }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save.");
+      onRestaurantUpdate?.(data.restaurant);
+      setProfileSaved(true);
       setReloadKey((k) => k + 1);
       setTimeout(() => setProfileSaved(false), 2000);
     } catch (e) {
@@ -1558,14 +1647,14 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
             disabled={savingProfile}
             className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
-            {savingProfile ? "Saving..." : taglineSavedOnce ? "Update" : "Save"}
+            {savingProfile ? "Saving..." : restaurant.tagline ? "Update" : "Save"}
           </button>
         </div>
       </div>
       <div className="mt-4">
         <label className="block text-xs font-semibold text-ink mb-1.5">Instagram page link (optional)</label>
         <p className="text-xs text-clay mb-1.5">
-          Shown to customers at checkout with a "Follow us" button, before they place their order.
+          Shows as a small Instagram icon (no text) near the bottom of the customer's menu page — tapping it opens your Instagram page.
         </p>
         <div className="flex gap-2">
           <input
@@ -1579,14 +1668,60 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
             disabled={savingProfile}
             className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
-            Save
+            {savingProfile ? "Saving..." : restaurant.instagram_url ? "Update" : "Save"}
           </button>
         </div>
       </div>
       <div className="mt-4">
-        <label className="block text-xs font-semibold text-ink mb-1.5">Scrolling announcement banner (optional)</label>
+        <label className="block text-xs font-semibold text-ink mb-1.5">Google review link (optional)</label>
         <p className="text-xs text-clay mb-1.5">
-          Add one or more short messages that scroll under your name on the customer's menu screen -- e.g. "Exclusive discount today only!" You can add several; they'll rotate.
+          Shows as a small Google icon next to Instagram — tapping it opens your restaurant's Google Maps
+          listing so customers can leave you a review. Paste your Google Maps "write a review" link here.
+        </p>
+        <div className="flex gap-2">
+          <input
+            value={googleReviewUrl}
+            onChange={(e) => setGoogleReviewUrl(e.target.value)}
+            placeholder="https://g.page/r/your-restaurant/review"
+            className="flex-1 border border-ink/15 rounded-card px-3.5 py-2.5 text-sm bg-white"
+          />
+          <button
+            onClick={saveGoogleReview}
+            disabled={savingProfile}
+            className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
+          >
+            {savingProfile ? "Saving..." : restaurant.google_review_url ? "Update" : "Save"}
+          </button>
+        </div>
+      </div>
+      <div className="mt-4">
+        <label className="block text-xs font-semibold text-ink mb-1.5">Discount-applied message (optional)</label>
+        <p className="text-xs text-clay mb-1.5">
+          Shown to the customer right after they apply an offer or finish a feedback campaign at billing
+          time. Leave blank to use the default message.
+        </p>
+        <div className="flex gap-2">
+          <input
+            value={offerSuccessMessage}
+            onChange={(e) => setOfferSuccessMessage(e.target.value)}
+            placeholder="Awesome! Your discount has been applied to this bill."
+            className="flex-1 border border-ink/15 rounded-card px-3.5 py-2.5 text-sm bg-white"
+          />
+          <button
+            onClick={saveOfferSuccessMessage}
+            disabled={savingProfile}
+            className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
+          >
+            {savingProfile ? "Saving..." : restaurant.offer_success_message ? "Update" : "Save"}
+          </button>
+        </div>
+      </div>
+      <div className="mt-4">
+        <label className="block text-xs font-semibold text-ink mb-1.5">Tagline messages (optional)</label>
+        <p className="text-xs text-clay mb-1.5">
+          Add one or more short lines shown above the Google/Instagram icons at the bottom of the
+          customer's menu page -- e.g. "Exclusive discount today only!" Add as many as you like; they
+          rotate one at a time.
         </p>
         <div className="flex gap-2 mb-2">
           <input
@@ -1800,7 +1935,7 @@ function PaymentSettingsTab({ restaurant, paymentSettings, setPaymentSettings })
       </label>
 
       <button disabled={saving} onClick={save} className="bg-chili text-white px-5 py-2.5 rounded-card text-sm font-semibold disabled:opacity-60 inline-flex items-center gap-1.5">
-        {saving ? "Saving..." : saved ? (<><Check size={15} /> Saved</>) : "Save"}
+        {saving ? "Saving..." : saved ? (<><Check size={15} /> Saved</>) : (paymentSettings?.upi_id || paymentSettings?.phonepe_qr_image_url ? "Update" : "Save")}
       </button>
     </div>
   );

@@ -46,7 +46,7 @@ export default function TableEntryPage({ params }) {
     .all(restaurant.id);
 
   const items = db
-    .prepare("SELECT * FROM menu_items WHERE restaurant_id = ? AND available = 1")
+    .prepare("SELECT * FROM menu_items WHERE restaurant_id = ? AND available = 1 ORDER BY sort_order, created_at")
     .all(restaurant.id)
     .map((it) => ({ ...it, tags: JSON.parse(it.tags || "[]") }));
 
@@ -80,6 +80,8 @@ export default function TableEntryPage({ params }) {
         cover_image_url: restaurant.cover_image_url,
         tagline: restaurant.tagline,
         instagram_url: restaurant.instagram_url,
+        google_review_url: restaurant.google_review_url,
+        offer_success_message: restaurant.offer_success_message,
         banner_messages: JSON.parse(restaurant.banner_messages || "[]"),
         currency: restaurant.currency,
         welcome_animation_enabled: !!restaurant.welcome_animation_enabled,

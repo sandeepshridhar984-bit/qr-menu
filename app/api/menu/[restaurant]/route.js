@@ -21,7 +21,7 @@ export async function GET(request, { params }) {
     .all(restaurant.id);
 
   const items = db
-    .prepare("SELECT * FROM menu_items WHERE restaurant_id = ? AND available = 1")
+    .prepare("SELECT * FROM menu_items WHERE restaurant_id = ? AND available = 1 ORDER BY sort_order, created_at")
     .all(restaurant.id)
     .map((it) => ({ ...it, tags: JSON.parse(it.tags || "[]") }));
 
@@ -44,6 +44,9 @@ export async function GET(request, { params }) {
       name: restaurant.name,
       logo_emoji: restaurant.logo_emoji,
       tagline: restaurant.tagline,
+      instagram_url: restaurant.instagram_url,
+      google_review_url: restaurant.google_review_url,
+      offer_success_message: restaurant.offer_success_message,
       currency: restaurant.currency,
       welcome_animation_enabled: !!restaurant.welcome_animation_enabled,
       welcome_sound_enabled: !!restaurant.welcome_sound_enabled,

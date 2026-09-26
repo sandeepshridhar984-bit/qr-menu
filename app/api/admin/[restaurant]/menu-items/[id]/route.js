@@ -4,10 +4,10 @@ import { db } from "@/lib/db";
 const EDITABLE_FIELDS = [
   "category_id", "name", "description", "price", "discounted_price",
   "image_emoji", "image_url", "is_veg", "spice_level", "prep_time_minutes",
-  "available", "is_popular", "is_recommended",
+  "available", "is_popular", "is_recommended", "is_new_pick", "sort_order",
 ];
 const JSON_FIELDS = ["tags", "ingredients", "allergens"];
-const BOOL_FIELDS = ["is_veg", "available", "is_popular", "is_recommended"];
+const BOOL_FIELDS = ["is_veg", "available", "is_popular", "is_recommended", "is_new_pick"];
 
 export async function PATCH(request, { params }) {
   const body = await request.json();
