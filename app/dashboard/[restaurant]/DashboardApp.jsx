@@ -1403,6 +1403,11 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
   const [coverPreview, setCoverPreview] = useState(restaurant.cover_image_url || null);
   const [tagline, setTagline] = useState(restaurant.tagline || "");
   const [instagramUrl, setInstagramUrl] = useState(restaurant.instagram_url || "");
+  // Tracks whether each field already has a saved value, so the button can
+  // read "Update" instead of "Save" once there's something to update —
+  // rather than always saying "Save" even the second, third, tenth time.
+  const [taglineSavedOnce, setTaglineSavedOnce] = useState(!!restaurant.tagline);
+  const [instagramSavedOnce, setInstagramSavedOnce] = useState(!!restaurant.instagram_url);
   const [bannerMessages, setBannerMessages] = useState(() => {
     try { return JSON.parse(restaurant.banner_messages || "[]"); } catch { return []; }
   });
@@ -1450,6 +1455,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
       if (!res.ok) throw new Error(data.error || "Could not save.");
       onRestaurantUpdate?.(data.restaurant);
       setProfileSaved(true);
+      setTaglineSavedOnce(!!tagline);
       setReloadKey((k) => k + 1);
       setTimeout(() => setProfileSaved(false), 2000);
     } catch (e) {
@@ -1469,6 +1475,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
       if (!res.ok) throw new Error(data.error || "Could not save.");
       onRestaurantUpdate?.(data.restaurant);
       setProfileSaved(true);
+      setInstagramSavedOnce(!!instagramUrl);
       setReloadKey((k) => k + 1);
       setTimeout(() => setProfileSaved(false), 2000);
     } catch (e) {
@@ -1551,7 +1558,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
             disabled={savingProfile}
             className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
-            {savingProfile ? "Saving..." : restaurant.tagline ? "Update" : "Save"}
+            {savingProfile ? "Saving..." : taglineSavedOnce ? "Update" : "Save"}
           </button>
         </div>
       </div>
@@ -1572,7 +1579,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
             disabled={savingProfile}
             className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
-            {savingProfile ? "Saving..." : restaurant.instagram_url ? "Update" : "Save"}
+            Save
           </button>
         </div>
       </div>
@@ -1793,7 +1800,7 @@ function PaymentSettingsTab({ restaurant, paymentSettings, setPaymentSettings })
       </label>
 
       <button disabled={saving} onClick={save} className="bg-chili text-white px-5 py-2.5 rounded-card text-sm font-semibold disabled:opacity-60 inline-flex items-center gap-1.5">
-        {saving ? "Saving..." : saved ? (<><Check size={15} /> Saved</>) : (paymentSettings?.upi_id || paymentSettings?.phonepe_qr_image_url ? "Update" : "Save")}
+        {saving ? "Saving..." : saved ? (<><Check size={15} /> Saved</>) : "Save"}
       </button>
     </div>
   );
