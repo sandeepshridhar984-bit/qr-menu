@@ -132,12 +132,15 @@ export default function KitchenApp({ restaurant, orders: initialOrders }) {
                   <Clock size={13} /> {timeAgo(o.created_at)}
                 </span>
               </div>
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <p className="text-xs text-clay">#{o.order_number}</p>
                 {o.status === "preparing" && (
                   <span className="text-[11px] font-bold text-chili-dark bg-turmeric/25 px-2 py-0.5 rounded-full">PREPARING</span>
                 )}
               </div>
+              {o.customer_name && (
+                <p className="text-sm font-semibold text-sprout-dark mb-2">{o.customer_name}{o.customer_phone ? ` · ${o.customer_phone}` : ""}</p>
+              )}
 
               <div className="grid gap-2 flex-1">
                 {o.items.map((it) => (

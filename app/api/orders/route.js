@@ -4,7 +4,7 @@ import { newId, generateOrderNumber } from "@/lib/ids";
 
 export async function POST(request) {
   const body = await request.json();
-  const { restaurantId, tableId, items, subtotal, sessionId } = body;
+  const { restaurantId, tableId, items, subtotal, sessionId, customerName, customerPhone } = body;
 
   if (!restaurantId || !tableId || !items?.length) {
     return NextResponse.json({ error: "Missing order details" }, { status: 400 });
@@ -27,11 +27,17 @@ export async function POST(request) {
   const orderId = newId();
   const orderNumber = generateOrderNumber(restaurantId);
 
+  // Name is trimmed and capped to a sane length; phone is optional and kept
+  // as-entered (no format enforced, since customers may be on any country's
+  // number format) but also capped to avoid abuse via a huge payload.
+  const cleanCustomerName = (customerName || "").toString().trim().slice(0, 60);
+  const cleanCustomerPhone = (customerPhone || "").toString().trim().slice(0, 20);
+
   const insertOrder = db.prepare(
     `INSERT INTO orders
       (id, order_number, restaurant_id, table_id, status, subtotal, discount_amount, tax_amount,
-       tax_breakdown, platform_fee, total, payment_method, payment_status)
-     VALUES (?, ?, ?, ?, 'pending', ?, 0, 0, '[]', 0, ?, NULL, 'unpaid')`
+       tax_breakdown, platform_fee, total, payment_method, payment_status, customer_name, customer_phone)
+     VALUES (?, ?, ?, ?, 'pending', ?, 0, 0, '[]', 0, ?, NULL, 'unpaid', ?, ?)`
   );
   const insertItem = db.prepare(
     `INSERT INTO order_items (id, order_id, menu_item_id, name, quantity, unit_price, addons, item_note)
@@ -39,7 +45,7 @@ export async function POST(request) {
   );
 
   const tx = db.transaction(() => {
-    insertOrder.run(orderId, orderNumber, restaurantId, tableId, roundedSubtotal, roundedSubtotal);
+    insertOrder.run(orderId, orderNumber, restaurantId, tableId, roundedSubtotal, roundedSubtotal, cleanCustomerName, cleanCustomerPhone);
     for (const it of items) {
       insertItem.run(newId(), orderId, it.itemId, it.name, it.qty, it.price, it.note || "");
     }

@@ -409,8 +409,6 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
   // clean receipt for an order and hand it straight to the kitchen. Useful
   // any time email delivery isn't set up or isn't working.
   function printReceipt(order) {
-    const win = window.open("", "_blank", "width=380,height=600");
-    if (!win) return;
     const itemsHtml = order.items
       .map(
         (it) =>
@@ -456,6 +454,7 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
         <body>
           <h1>${restaurant.name}</h1>
           <p>Order #${order.order_number} · Table ${order.table_number || ""}</p>
+          ${order.customer_name ? `<p>${order.customer_name}${order.customer_phone ? " · " + order.customer_phone : ""}</p>` : ""}
           <p>${parseDbDate(order.created_at).toLocaleString()}</p>
           <hr />
           <table>
@@ -491,22 +490,37 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
       </html>
     `;
 
-    // Loading the receipt via document.write() into an already-opened blank
-    // popup is fragile -- some browsers (Edge included) leave the popup
-    // permanently blank if that write gets interrupted for any reason, with
-    // no error shown. Writing the HTML to a real Blob URL and pointing the
-    // window at that instead is a normal page load, so it isn't affected by
-    // that document.write quirk.
-    const blob = new Blob([html], { type: "text/html" });
-    const blobUrl = URL.createObjectURL(blob);
-    win.location.href = blobUrl;
-    win.onload = () => {
-      win.focus();
-      win.print();
+    // Opening a blank popup and then navigating it to a blob: URL (the old
+    // approach) is blocked by current Chrome/Edge as a cross-context blob
+    // navigation -- the popup opens but is left stuck on "about:blank" with
+    // no error shown, which is exactly the "Receipt isn't showing" bug.
+    // A hidden same-page <iframe> with its content set via srcdoc sidesteps
+    // that entirely: no popup, no popup blocker, no blob navigation, so it
+    // renders and prints reliably everywhere, phones included.
+    let frame = document.getElementById("receipt-print-frame");
+    if (!frame) {
+      frame = document.createElement("iframe");
+      frame.id = "receipt-print-frame";
+      frame.style.position = "fixed";
+      frame.style.right = "0";
+      frame.style.bottom = "0";
+      frame.style.width = "0";
+      frame.style.height = "0";
+      frame.style.border = "0";
+      document.body.appendChild(frame);
+    }
+    frame.onload = () => {
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } catch (e) {
+        // If printing is blocked for some reason, at least show the receipt
+        // in a normal tab instead of failing silently.
+        const blob = new Blob([html], { type: "text/html" });
+        window.open(URL.createObjectURL(blob), "_blank");
+      }
     };
-    // Free the memory behind the blob URL once the popup has had plenty of
-    // time to load it -- keeping it around forever isn't necessary.
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    frame.srcdoc = html;
   }
 
   return (
@@ -575,6 +589,11 @@ function OrdersTab({ restaurant, orders, setOrders, askConfirm }) {
                 )}
                 <div>
                   <p className="font-semibold text-ink">#{o.order_number} · Table {o.table_number}</p>
+                  {o.customer_name && (
+                    <p className="text-xs font-semibold text-sprout-dark mt-0.5">
+                      {o.customer_name}{o.customer_phone ? ` · ${o.customer_phone}` : ""}
+                    </p>
+                  )}
                   <p className="text-xs text-clay mt-0.5">{o.items.map((it) => `${it.name} ×${it.quantity}`).join(", ")}</p>
                   <p className="text-xs text-clay mt-0.5">
                     {money(o.total, restaurant.currency)}

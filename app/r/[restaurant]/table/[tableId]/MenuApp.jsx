@@ -62,6 +62,8 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
   const [cart, setCart] = useState([]);
   const [order, setOrder] = useState(null);
   const [placing, setPlacing] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
 
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
   const subtotal = cart.reduce((s, c) => s + c.qty * c.price, 0);
@@ -136,6 +138,8 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           items: cart,
           subtotal,
           sessionId,
+          customerName,
+          customerPhone,
         }),
       });
 
@@ -229,6 +233,10 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           onUpdateQty={updateQty}
           onPlaceOrder={placeOrder}
           placing={placing}
+          customerName={customerName}
+          setCustomerName={setCustomerName}
+          customerPhone={customerPhone}
+          setCustomerPhone={setCustomerPhone}
         />
       )}
 
@@ -321,12 +329,27 @@ function GoogleG({ size = 18 }) {
 }
 
 
+// A bold, full-width strip announcing today's live offer, shown as the very
+// first thing on the menu page (above the header) so it can't be missed --
+// unlike the old subtle rounded chip it replaces, this reads the way a
+// restaurant's own "exclusive discount today" banner should: solid color,
+// edge to edge, impossible to scroll past unnoticed.
+function OfferBanner({ offer }) {
+  return (
+    <div className="bg-sprout text-white px-4 py-2.5 flex items-center justify-center gap-2 text-center">
+      <Sparkles size={14} className="flex-shrink-0" />
+      <p className="text-xs font-bold tracking-wide uppercase truncate">{offer.title}</p>
+      <Sparkles size={14} className="flex-shrink-0" />
+    </div>
+  );
+}
+
 // ---------- Welcome ----------
 
 function WelcomeScreen({ restaurant, table, onEnter }) {
   const hasCover = !!restaurant.cover_image_url;
   return (
-    <div className="min-h-screen flex flex-col bg-sprout">
+    <div className="min-h-screen flex flex-col bg-ink">
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center relative overflow-hidden">
         {hasCover ? (
           <>
@@ -335,11 +358,14 @@ function WelcomeScreen({ restaurant, table, onEnter }) {
               alt=""
               className="absolute inset-0 w-full h-full object-cover scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-sprout-dark/70 via-sprout-dark/55 to-sprout-dark/90" />
+            {/* Just enough of a neutral dark veil (no green tint) to keep the
+                white logo/text readable over the restaurant's own photo --
+                the photo itself is the background, untouched by any color. */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/35 to-black/70" />
           </>
         ) : (
           <>
-            <div className="absolute inset-0 bg-gradient-to-br from-sprout via-sprout to-sprout-dark" />
+            <div className="absolute inset-0 bg-gradient-to-br from-ink via-ink to-black" />
             <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
             <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
             <div className="absolute inset-0 opacity-[0.06] flex items-center justify-center select-none">
@@ -395,6 +421,10 @@ function MenuScreen({
 
   return (
     <div className="pb-28 bg-paper">
+      {/* Exclusive-offer banner -- the very first thing on the page, ahead
+          of the header/hero, so today's discount can't be missed. */}
+      {offers.length > 0 && <OfferBanner offer={offers[0]} />}
+
       <HeroSection
         restaurant={restaurant}
         table={table}
@@ -452,16 +482,6 @@ function MenuScreen({
           ))}
         </div>
       </div>
-
-      {offers.length > 0 && (
-        <div className="px-4 pt-4">
-          {offers.map((o) => (
-            <div key={o.id} className="bg-turmeric/15 border border-turmeric/30 rounded-card px-4 py-2.5 text-sm text-chili-dark font-medium mb-2 flex items-center gap-2">
-              <Tag size={15} className="flex-shrink-0" /> {o.title}
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className="px-4 pt-4">
         <button
@@ -1035,7 +1055,10 @@ function AssistantModal({ restaurantId, items, currency, onClose, onAdd }) {
 // ---------- Cart (items only -- no discounts/payment here anymore; those
 // come after the food is served) ----------
 
-function CartScreen({ cart, currency, subtotal, onBack, onUpdateQty, onPlaceOrder, placing }) {
+function CartScreen({
+  cart, currency, subtotal, onBack, onUpdateQty, onPlaceOrder, placing,
+  customerName, setCustomerName, customerPhone, setCustomerPhone,
+}) {
   return (
     <div className="min-h-screen pb-32 bg-paper animate-slide-in-right">
       <div className="bg-white border-b border-ink/10 px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
@@ -1076,6 +1099,29 @@ function CartScreen({ cart, currency, subtotal, onBack, onUpdateQty, onPlaceOrde
           </div>
 
           <div className="px-4 mt-5">
+            <div className="bg-white border border-ink/10 rounded-2xl p-4 shadow-sm">
+              <p className="text-sm font-semibold text-ink mb-2.5">Your details</p>
+              <div className="grid gap-2.5">
+                <input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Your name"
+                  maxLength={60}
+                  className="w-full bg-paper border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-sprout"
+                />
+                <input
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="Phone number (optional)"
+                  type="tel"
+                  maxLength={20}
+                  className="w-full bg-paper border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-sprout"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 mt-3">
             <div className="bg-white border border-ink/10 rounded-2xl p-4 text-sm shadow-sm">
               <Row label="Subtotal" value={money(subtotal, currency)} bold />
             </div>
@@ -1513,6 +1559,33 @@ function ReceiptScreen({ order, restaurant, table, payment, onNewOrder }) {
 
       {!isDone && (
         <p className="text-xs text-clay mt-6">This page updates automatically once staff confirm your payment.</p>
+      )}
+
+      {(restaurant.instagram_url || restaurant.google_review_url) && (
+        <div className="mt-8 flex items-center justify-center gap-3">
+          {restaurant.google_review_url && (
+            <a
+              href={restaurant.google_review_url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Review us on Google"
+              className="w-10 h-10 rounded-full bg-white border border-ink/10 shadow-sm flex items-center justify-center"
+            >
+              <GoogleG size={18} />
+            </a>
+          )}
+          {restaurant.instagram_url && (
+            <a
+              href={restaurant.instagram_url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Visit our Instagram"
+              className="w-10 h-10 rounded-full bg-white border border-ink/10 shadow-sm flex items-center justify-center text-ink/70"
+            >
+              <Instagram size={18} />
+            </a>
+          )}
+        </div>
       )}
     </div>
   );
