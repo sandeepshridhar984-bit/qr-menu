@@ -203,7 +203,6 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           cart={cart}
           currency={restaurant.currency}
           subtotal={subtotal}
-          instagramUrl={restaurant.instagram_url}
           onBack={() => setView("menu")}
           onUpdateQty={updateQty}
           onPlaceOrder={placeOrder}
@@ -232,7 +231,7 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
 function ScrollingBanner({ messages }) {
   if (!messages || messages.length === 0) return null;
   return (
-    <div className="relative w-full overflow-hidden py-2 bg-gradient-to-r from-chili-dark via-chili to-chili-dark shadow-md">
+    <div className="relative w-full overflow-hidden py-2 bg-gradient-to-r from-herb-dark via-herb to-herb-dark shadow-md">
       {/* A glossy sweep of light drifting across the banner -- reads as
           "something exciting is happening here" rather than a plain static bar. */}
       <div className="absolute inset-0 banner-shine pointer-events-none" />
@@ -241,7 +240,7 @@ function ScrollingBanner({ messages }) {
           <span key={dup} className="flex items-center">
             {messages.map((m, i) => (
               <span key={i} className="flex items-center gap-2 mx-5">
-                <Sparkles size={13} className="text-turmeric flex-shrink-0 animate-pulse-soft" />
+                <Sparkles size={13} className="text-paper flex-shrink-0 animate-pulse-soft" />
                 <span
                   className="text-xs font-bold tracking-wide text-paper uppercase"
                   style={{ textShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
@@ -302,8 +301,8 @@ function WelcomeScreen({ restaurant, table, onEnter }) {
         ) : (
           <>
             <div className="absolute inset-0 bg-gradient-to-br from-ink via-[#1c2519] to-[#0f140e]" />
-            <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-chili/20 blur-3xl" />
-            <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-turmeric/10 blur-3xl" />
+            <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-herb/25 blur-3xl" />
+            <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-herb-dark/20 blur-3xl" />
             <div className="absolute inset-0 opacity-[0.04] flex items-center justify-center select-none">
               <UtensilsCrossed size={280} strokeWidth={1} className="text-paper" />
             </div>
@@ -322,7 +321,7 @@ function WelcomeScreen({ restaurant, table, onEnter }) {
               <Monogram name={restaurant.name} size="lg" className="rounded-none text-3xl" />
             </div>
           )}
-          <p className="text-turmeric tracking-[0.15em] uppercase text-xs font-semibold mb-3">Table {table.table_number}</p>
+          <p className="text-herb tracking-[0.15em] uppercase text-xs font-semibold mb-3">Table {table.table_number}</p>
           <h1 className="font-display text-4xl md:text-5xl font-bold text-paper leading-[1.1]">
             Welcome to<br />{restaurant.name}
           </h1>
@@ -331,7 +330,7 @@ function WelcomeScreen({ restaurant, table, onEnter }) {
           </p>
           <button
             onClick={onEnter}
-            className="mt-10 bg-chili hover:bg-chili-dark transition-all hover:scale-[1.03] active:scale-[0.98] text-white font-semibold px-9 py-4 rounded-full shadow-lg shadow-chili/30 inline-flex items-center gap-2"
+            className="mt-10 bg-herb hover:bg-herb-dark transition-all hover:scale-[1.03] active:scale-[0.98] text-white font-semibold px-9 py-4 rounded-full shadow-lg shadow-herb/30 inline-flex items-center gap-2"
           >
             {restaurant.welcome_sound_enabled ? (
               <>Tap to Enter <Volume2 size={18} /></>
@@ -373,7 +372,7 @@ function MenuScreen({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search the menu..."
-            className="mt-3 w-full bg-paper border border-ink/10 rounded-card px-4 py-2.5 text-sm outline-none focus:border-chili"
+            className="mt-3 w-full bg-paper border border-ink/10 rounded-card px-4 py-2.5 text-sm outline-none focus:border-herb"
           />
 
           <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -383,7 +382,7 @@ function MenuScreen({
                 onClick={() => toggleFilter(f.key)}
                 className={`whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
                   filters.includes(f.key)
-                    ? "bg-chili text-white border-chili"
+                    ? "bg-herb text-white border-herb"
                     : "border-ink/15 text-ink/70"
                 }`}
               >
@@ -432,7 +431,7 @@ function MenuScreen({
       {offers.length > 0 && (
         <div className="px-4 pt-4">
           {offers.map((o) => (
-            <div key={o.id} className="bg-turmeric/15 border border-turmeric/30 rounded-card px-4 py-2.5 text-sm text-chili-dark font-medium mb-2 flex items-center gap-2">
+            <div key={o.id} className="bg-herb/10 border border-herb/25 rounded-card px-4 py-2.5 text-sm text-herb-dark font-medium mb-2 flex items-center gap-2">
               <Tag size={15} className="flex-shrink-0" /> {o.title}
             </div>
           ))}
@@ -451,14 +450,14 @@ function MenuScreen({
       {!query && filters.length === 0 && newItems.length > 0 && (
         <div className="pt-5">
           <p className="px-4 text-sm font-semibold text-ink mb-2.5 flex items-center gap-1.5">
-            <Sparkles size={15} className="text-turmeric" /> New on the menu
+            <Sparkles size={15} className="text-herb" /> New on the menu
           </p>
           <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-1">
             {newItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => onOpenItem(item)}
-                className="flex-shrink-0 w-36 text-left bg-white border border-ink/10 rounded-2xl overflow-hidden hover:border-chili/40 hover:shadow-md transition-all"
+                className="flex-shrink-0 w-36 text-left bg-white border border-ink/10 rounded-2xl overflow-hidden hover:border-herb/40 hover:shadow-md transition-all"
               >
                 <div className="relative">
                   {item.image_url ? (
@@ -466,7 +465,7 @@ function MenuScreen({
                   ) : (
                     <div className="w-36 h-24"><Monogram name={item.name} size="md" className="rounded-none" /></div>
                   )}
-                  <span className="absolute top-1.5 left-1.5 text-[10px] font-bold text-white bg-chili px-1.5 py-0.5 rounded-full">NEW</span>
+                  <span className="absolute top-1.5 left-1.5 text-[10px] font-bold text-white bg-herb px-1.5 py-0.5 rounded-full">NEW</span>
                 </div>
                 <div className="p-2.5">
                   <p className="font-semibold text-ink text-xs truncate">{item.name}</p>
@@ -492,7 +491,7 @@ function MenuScreen({
       {cartCount > 0 && (
         <button
           onClick={onOpenCart}
-          className="fixed bottom-5 left-4 right-4 bg-chili text-white rounded-card px-5 py-3.5 flex items-center justify-between shadow-lg font-semibold z-30"
+          className="fixed bottom-5 left-4 right-4 bg-herb text-white rounded-card px-5 py-3.5 flex items-center justify-between shadow-lg font-semibold z-30"
         >
           <span>{cartCount} item{cartCount > 1 ? "s" : ""} in cart</span>
           <span>{money(cartTotal, restaurant.currency)} · View cart</span>
@@ -511,9 +510,11 @@ function MenuScreen({
 function FeaturedCarousel({ items, currency, onOpenItem }) {
   const picks = useMemo(() => {
     const withImage = items.filter((it) => it.image_url);
-    const popular = withImage.filter((it) => it.is_popular);
-    const pool = popular.length ? popular : withImage;
-    return pool.slice(0, 8);
+    // Popular dishes lead the carousel, but everything with a photo gets a
+    // slide -- so the carousel actually rotates instead of being stuck on
+    // one item just because only one happens to be flagged "popular".
+    const sorted = [...withImage].sort((a, b) => (b.is_popular ? 1 : 0) - (a.is_popular ? 1 : 0));
+    return sorted.slice(0, 8);
   }, [items]);
 
   const [index, setIndex] = useState(0);
@@ -564,7 +565,7 @@ function FeaturedCarousel({ items, currency, onOpenItem }) {
                 <img src={item.image_url} alt={item.name} className="absolute inset-0 w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/15 to-transparent" />
                 {item.is_popular && (
-                  <span className="absolute top-3.5 left-3.5 bg-turmeric text-ink text-[11px] font-bold px-2.5 py-1 rounded-full">
+                  <span className="absolute top-3.5 left-3.5 bg-herb text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
                     Chef's pick
                   </span>
                 )}
@@ -599,7 +600,7 @@ function MenuItemCard({ item, currency, onOpen, isNew }) {
   return (
     <button
       onClick={onOpen}
-      className="text-left bg-white border border-ink/10 rounded-2xl p-3.5 flex gap-3 hover:border-chili/40 hover:shadow-md transition-all"
+      className="text-left bg-white border border-ink/10 rounded-2xl p-3.5 flex gap-3 hover:border-herb/40 hover:shadow-md transition-all"
     >
       {item.image_url ? (
         <img src={item.image_url} alt={item.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
@@ -621,10 +622,10 @@ function MenuItemCard({ item, currency, onOpen, isNew }) {
           ) : (
             <span className="font-semibold text-ink text-sm">{money(item.price, currency)}</span>
           )}
-          {isNew ? <Badge label="New" tone="chili" /> : null}
-          {item.is_popular ? <Badge label="Popular" tone="turmeric" /> : null}
+          {isNew ? <Badge label="New" tone="herb" /> : null}
+          {item.is_popular ? <Badge label="Popular" tone="herb" /> : null}
           {(item.spice_level === "medium" || item.spice_level === "hot") ? (
-            <Badge label={item.spice_level === "hot" ? "Very spicy" : "Spicy"} tone="chili" />
+            <Badge label={item.spice_level === "hot" ? "Very spicy" : "Spicy"} tone="spice" />
           ) : null}
         </div>
       </div>
@@ -646,7 +647,8 @@ function VegDot({ veg }) {
 }
 
 function Badge({ label, tone }) {
-  const toneClasses = tone === "turmeric" ? "bg-turmeric/20 text-chili-dark" : "bg-chili/10 text-chili-dark";
+  const toneClasses =
+    tone === "spice" ? "bg-chili/10 text-chili-dark" : "bg-herb/12 text-herb-dark";
   return <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${toneClasses}`}>{label}</span>;
 }
 
@@ -704,8 +706,8 @@ function ItemDetail({ item, currency, onClose, onAdd }) {
             {item.discounted_price ? (
               <span className="text-sm text-clay line-through">{money(item.price, currency)}</span>
             ) : null}
-            {item.is_popular ? <Badge label="Popular" tone="turmeric" /> : null}
-            <Badge label={`${item.prep_time_minutes} min`} tone="chili" />
+            {item.is_popular ? <Badge label="Popular" tone="herb" /> : null}
+            <Badge label={`${item.prep_time_minutes} min`} tone="herb" />
           </div>
 
           {allergens.length > 0 && (
@@ -851,7 +853,7 @@ function AssistantModal({ restaurantId, items, currency, onClose, onAdd }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Tell me what you're craving..."
-            className="flex-1 bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-chili"
+            className="flex-1 bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-herb"
           />
           <button type="submit" className="bg-ink text-paper px-4 rounded-card text-sm font-semibold">Ask</button>
         </form>
@@ -880,7 +882,7 @@ function AssistantModal({ restaurantId, items, currency, onClose, onAdd }) {
                       <p className="text-xs text-clay mt-0.5">{r.reason}</p>
                       <button
                         onClick={() => { onAdd(r.item); setAdded((a) => ({ ...a, [r.item.id]: true })); }}
-                        className="mt-2 text-xs font-semibold bg-chili/10 text-chili-dark px-3 py-1.5 rounded-full inline-flex items-center gap-1"
+                        className="mt-2 text-xs font-semibold bg-herb/10 text-herb-dark px-3 py-1.5 rounded-full inline-flex items-center gap-1"
                       >
                         {added[r.item.id] ? (<><CheckCheck size={13} /> Added</>) : "Add to cart"}
                       </button>
@@ -899,7 +901,7 @@ function AssistantModal({ restaurantId, items, currency, onClose, onAdd }) {
 // ---------- Cart (items only -- no discounts/payment here anymore; those
 // come after the food is served) ----------
 
-function CartScreen({ cart, currency, subtotal, instagramUrl, onBack, onUpdateQty, onPlaceOrder, placing }) {
+function CartScreen({ cart, currency, subtotal, onBack, onUpdateQty, onPlaceOrder, placing }) {
   return (
     <div className="min-h-screen pb-32">
       <div className="bg-white border-b border-ink/10 px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
@@ -911,7 +913,7 @@ function CartScreen({ cart, currency, subtotal, instagramUrl, onBack, onUpdateQt
         <div className="text-center py-20 px-6">
           <ShoppingCart size={40} className="text-clay-light mx-auto mb-3" strokeWidth={1.5} />
           <p className="text-ink/60">Your cart is empty.</p>
-          <button onClick={onBack} className="mt-4 text-chili font-semibold text-sm">Browse the menu</button>
+          <button onClick={onBack} className="mt-4 text-herb font-semibold text-sm">Browse the menu</button>
         </div>
       ) : (
         <>
@@ -947,24 +949,10 @@ function CartScreen({ cart, currency, subtotal, instagramUrl, onBack, onUpdateQt
             </p>
           </div>
 
-          {instagramUrl && (
-            <div className="px-4 mt-4">
-              <a
-                href={instagramUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] text-white rounded-card px-4 py-3.5 font-semibold text-sm"
-              >
-                <span className="flex items-center gap-2"><Instagram size={18} /> Follow us on Instagram</span>
-                <ArrowRight size={16} />
-              </a>
-            </div>
-          )}
-
           <button
             disabled={placing}
             onClick={onPlaceOrder}
-            className="fixed bottom-5 left-4 right-4 bg-chili disabled:opacity-60 text-white rounded-card px-5 py-3.5 font-semibold"
+            className="fixed bottom-5 left-4 right-4 bg-herb disabled:opacity-60 text-white rounded-card px-5 py-3.5 font-semibold"
           >
             {placing ? "Sending to kitchen..." : `Send order to kitchen · ${money(subtotal, currency)}`}
           </button>
@@ -1165,7 +1153,7 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
                     key={o.id}
                     onClick={() => { setSelectedOfferId(isSelected ? null : o.id); setCampaignFeedback(null); }}
                     className={`text-left border rounded-card p-3.5 flex items-center justify-between gap-3 transition-colors ${
-                      isSelected ? "border-chili bg-chili/5" : "border-ink/10 bg-white"
+                      isSelected ? "border-herb bg-herb/5" : "border-ink/10 bg-white"
                     }`}
                   >
                     <div>
@@ -1174,7 +1162,7 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
                         {o.discount_type === "percent" ? `${o.discount_value}% off` : `${money(o.discount_value, currency)} off`}
                       </p>
                     </div>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${isSelected ? "bg-chili text-white" : "bg-paper text-ink/60"}`}>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${isSelected ? "bg-herb text-white" : "bg-paper text-ink/60"}`}>
                       {isSelected ? (<span className="inline-flex items-center gap-1"><CheckCheck size={13} /> Applied</span>) : "Select"}
                     </span>
                   </button>
@@ -1231,7 +1219,7 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
             <button
               onClick={() => setPayMethod("cash")}
               className={`text-left border rounded-card p-4 flex items-center justify-between ${
-                payMethod === "cash" ? "border-chili bg-chili/5" : "border-ink/10 bg-white"
+                payMethod === "cash" ? "border-herb bg-herb/5" : "border-ink/10 bg-white"
               }`}
             >
               <div>
@@ -1245,7 +1233,7 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
             <button
               onClick={() => setPayMethod("online_upi")}
               className={`text-left border rounded-card p-4 flex items-center justify-between ${
-                payMethod === "online_upi" ? "border-chili bg-chili/5" : "border-ink/10 bg-white"
+                payMethod === "online_upi" ? "border-herb bg-herb/5" : "border-ink/10 bg-white"
               }`}
             >
               <div>
@@ -1258,12 +1246,24 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
         </div>
 
         {error && <p className="text-xs text-chili-dark font-medium mb-3">{error}</p>}
+
+        {restaurant.instagram_url && (
+          <a
+            href={restaurant.instagram_url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] text-white rounded-card px-4 py-3.5 font-semibold text-sm mb-3"
+          >
+            <span className="flex items-center gap-2"><Instagram size={18} /> Follow us on Instagram</span>
+            <ArrowRight size={16} />
+          </a>
+        )}
       </div>
 
       <button
         disabled={submitting}
         onClick={submitBill}
-        className="fixed bottom-5 left-4 right-4 bg-chili disabled:opacity-60 text-white rounded-card px-5 py-3.5 font-semibold"
+        className="fixed bottom-5 left-4 right-4 bg-herb disabled:opacity-60 text-white rounded-card px-5 py-3.5 font-semibold"
       >
         {submitting ? "Preparing your bill..." : "Confirm & see final bill"}
       </button>
@@ -1375,7 +1375,7 @@ function ReceiptScreen({ order, restaurant, table, payment, onNewOrder }) {
       )}
 
       {isDone && (
-        <button onClick={onNewOrder} className="mt-8 text-chili font-semibold text-sm">
+        <button onClick={onNewOrder} className="mt-8 text-herb font-semibold text-sm">
           Order something else
         </button>
       )}
@@ -1480,7 +1480,7 @@ function CampaignModal({ campaign, onClose, onDone }) {
             <button
               disabled={!agreedTerms}
               onClick={() => setStep("feedback")}
-              className="mt-5 w-full bg-chili disabled:bg-ink/20 text-white font-semibold py-3 rounded-card"
+              className="mt-5 w-full bg-herb disabled:bg-ink/20 text-white font-semibold py-3 rounded-card"
             >
               Continue
             </button>
@@ -1502,7 +1502,7 @@ function CampaignModal({ campaign, onClose, onDone }) {
               onChange={(e) => setText(e.target.value)}
               placeholder="Tell us what you liked or what we can improve..."
               rows={3}
-              className="w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-chili"
+              className="w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-herb"
             />
 
             <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
@@ -1531,7 +1531,7 @@ function CampaignModal({ campaign, onClose, onDone }) {
             <button
               disabled={submitting}
               onClick={submit}
-              className="mt-5 w-full bg-chili disabled:opacity-60 text-white font-semibold py-3 rounded-card"
+              className="mt-5 w-full bg-herb disabled:opacity-60 text-white font-semibold py-3 rounded-card"
             >
               {submitting ? "Applying discount..." : `Get ${campaign.discount_type === "percent" ? campaign.discount_value + "%" : money(campaign.discount_value, "INR")} off this order`}
             </button>

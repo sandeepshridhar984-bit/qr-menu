@@ -13,6 +13,7 @@ module.exports = {
         "chili-dark": "#8C2F1E",
         turmeric: "#D9A441",
         herb: "#3F6B4A",
+        "herb-dark": "#2C4F34",
         clay: "#8C7B63",
         "clay-light": "#E7DFCF",
       },
