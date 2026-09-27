@@ -18,8 +18,11 @@ module.exports = {
         // Exact greens sampled from the client's reference video, used only
         // on the customer-facing menu/details pages so the rest of the
         // dashboard's muted "herb" green is untouched.
-        sprout: "#00A05C",
-        "sprout-dark": "#048F52",
+        // A lighter, more muted "professional" green for the customer view
+        // (previously a very saturated emerald, sampled from a reference
+        // video -- toned down here per the client's request).
+        sprout: "#43A06D",
+        "sprout-dark": "#2E7D53",
       },
       fontFamily: {
         display: ["Georgia", "Cambria", "Times New Roman", "serif"],

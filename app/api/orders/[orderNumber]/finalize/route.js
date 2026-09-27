@@ -10,7 +10,7 @@ import { newId } from "@/lib/ids";
 // used to do, just moved to this later moment in the order's life.
 export async function POST(request, { params }) {
   const body = await request.json();
-  const { offerId, campaignId, campaignFeedback, paymentMethod, sessionId } = body;
+  const { offerId, campaignParticipations, paymentMethod, sessionId } = body;
 
   const order = db.prepare("SELECT * FROM orders WHERE order_number = ?").get(params.orderNumber);
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -32,23 +32,34 @@ export async function POST(request, { params }) {
   const subtotal = order.subtotal;
   const roundMoney = (n) => Math.round(n);
 
-  // Discount: either a validated offer OR a validated campaign -- never both.
+  // Discount: either a validated offer, OR one or more validated campaigns
+  // whose own discounts (each computed the way the restaurant configured
+  // that campaign) are added together and capped at the subtotal -- never
+  // an offer combined with a campaign.
   let discount = 0;
-  let campaign = null;
-  if (campaignId) {
-    campaign = db.prepare("SELECT * FROM campaigns WHERE id = ? AND restaurant_id = ? AND active = 1").get(campaignId, restaurantId);
-    if (!campaign) {
-      return NextResponse.json({ error: "This campaign is no longer available." }, { status: 404 });
+  const validatedCampaigns = []; // [{campaign, feedback}]
+  if (Array.isArray(campaignParticipations) && campaignParticipations.length > 0) {
+    for (const p of campaignParticipations) {
+      const campaign = db.prepare("SELECT * FROM campaigns WHERE id = ? AND restaurant_id = ? AND active = 1").get(p.campaignId, restaurantId);
+      if (!campaign) {
+        return NextResponse.json({ error: "One of these campaigns is no longer available." }, { status: 404 });
+      }
+      const feedback = p.feedback || {};
+      if (!feedback.agreedToSubmitContent) {
+        return NextResponse.json({ error: `You must agree to the terms for "${campaign.title}" to apply that discount.` }, { status: 400 });
+      }
+      if (campaign.requires_video && !feedback.mediaUrl) {
+        return NextResponse.json({
+          error: campaign.media_type === "audio" ? `"${campaign.title}" requires a voice note to be submitted.` : `"${campaign.title}" requires a video to be submitted.`,
+        }, { status: 400 });
+      }
+      if (!feedback.customerName?.trim()) {
+        return NextResponse.json({ error: `Please enter your name to submit "${campaign.title}".` }, { status: 400 });
+      }
+      validatedCampaigns.push({ campaign, feedback });
+      discount += campaign.discount_type === "percent" ? (subtotal * campaign.discount_value) / 100 : campaign.discount_value;
     }
-    if (!campaignFeedback?.agreedToSubmitContent) {
-      return NextResponse.json({ error: "You must agree to the campaign terms to apply this discount." }, { status: 400 });
-    }
-    if (campaign.requires_video && !campaignFeedback?.mediaUrl) {
-      return NextResponse.json({
-        error: campaign.media_type === "audio" ? "This campaign requires a voice note to be submitted." : "This campaign requires a video to be submitted.",
-      }, { status: 400 });
-    }
-    discount = campaign.discount_type === "percent" ? (subtotal * campaign.discount_value) / 100 : campaign.discount_value;
+    discount = Math.min(discount, subtotal);
   } else if (offerId) {
     const offer = db.prepare("SELECT * FROM offers WHERE id = ? AND restaurant_id = ? AND active = 1").get(offerId, restaurantId);
     if (offer && subtotal >= offer.min_order_value) {
@@ -87,22 +98,24 @@ export async function POST(request, { params }) {
       ).run(newId(), restaurantId, order.id, platformFee);
     }
 
-    if (campaign) {
+    for (const { campaign, feedback } of validatedCampaigns) {
       db.prepare(
         `INSERT INTO consents
           (id, campaign_id, order_id, session_id, terms_version, agreed_to_submit_content, agreed_to_instagram_use)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       ).run(
         newId(), campaign.id, order.id, sessionId || null, campaign.terms_version,
-        campaignFeedback.agreedToSubmitContent ? 1 : 0, campaignFeedback.agreedToInstagramUse ? 1 : 0
+        feedback.agreedToSubmitContent ? 1 : 0, feedback.agreedToInstagramUse ? 1 : 0
       );
       db.prepare(
-        `INSERT INTO reviews (id, restaurant_id, order_id, campaign_id, rating, text_feedback, video_url, discount_code)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO reviews (id, restaurant_id, order_id, campaign_id, rating, text_feedback, video_url, discount_code, customer_name, customer_phone)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
-        newId(), restaurantId, order.id, campaign.id, campaignFeedback.rating || null,
-        campaignFeedback.textFeedback || "", campaignFeedback.mediaUrl || "",
-        `TS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+        newId(), restaurantId, order.id, campaign.id, feedback.rating || null,
+        feedback.textFeedback || "", feedback.mediaUrl || "",
+        `TS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        (feedback.customerName || "").trim().slice(0, 60),
+        (feedback.customerPhone || "").trim().slice(0, 20)
       );
     }
   });

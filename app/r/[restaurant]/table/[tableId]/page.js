@@ -58,9 +58,12 @@ export default function TableEntryPage({ params }) {
     .prepare("SELECT * FROM restaurant_payment_settings WHERE restaurant_id = ?")
     .get(restaurant.id);
 
-  const campaign = db
-    .prepare("SELECT * FROM campaigns WHERE restaurant_id = ? AND active = 1 LIMIT 1")
-    .get(restaurant.id);
+  // Up to one active campaign per media_type (a video one and an audio
+  // one can run at the same time -- see the campaigns API for the rule).
+  const campaigns = db
+    .prepare("SELECT * FROM campaigns WHERE restaurant_id = ? AND active = 1")
+    .all(restaurant.id)
+    .map((c) => ({ ...c, template_videos: JSON.parse(c.template_videos || "[]") }));
 
   const taxes = db
     .prepare("SELECT * FROM restaurant_taxes WHERE restaurant_id = ? AND active = 1")
@@ -87,7 +90,7 @@ export default function TableEntryPage({ params }) {
         welcome_animation_enabled: !!restaurant.welcome_animation_enabled,
         welcome_sound_enabled: !!restaurant.welcome_sound_enabled,
       }}
-      campaign={campaign}
+      campaigns={campaigns}
       taxes={taxes}
       platformFeeRate={platformFeeRate}
       table={{ id: table.id, table_number: table.table_number, table_name: table.table_name }}

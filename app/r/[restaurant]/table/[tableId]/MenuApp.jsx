@@ -50,7 +50,7 @@ function DishPlaceholder({ iconSize = 24, rounded = "rounded-xl", className = ""
   );
 }
 
-export default function MenuApp({ restaurant, table, categories, items, offers, payment, campaign, taxes, platformFeeRate }) {
+export default function MenuApp({ restaurant, table, categories, items, offers, payment, campaigns, taxes, platformFeeRate }) {
   const [sessionId] = useState(() => `sess_${Math.random().toString(36).slice(2)}`);
   const [view, setView] = useState("welcome");
   const [entered, setEntered] = useState(false);
@@ -246,7 +246,7 @@ export default function MenuApp({ restaurant, table, categories, items, offers, 
           restaurant={restaurant}
           table={table}
           offers={offers}
-          campaign={campaign}
+          campaigns={campaigns}
           payment={payment}
           sessionId={sessionId}
           onNewOrder={() => { setOrder(null); setView("menu"); }}
@@ -601,38 +601,12 @@ function HeroSection({ restaurant, table, categories, activeCategory, setActiveC
 
       <div className="relative mt-4">
         {/* The exact solid green from the reference recording, not a gradient */}
-        <div className="absolute inset-x-0 top-0 h-40 bg-sprout rounded-b-[45%] overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-28 bg-sprout rounded-b-[45%] overflow-hidden">
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
           <div className="absolute top-6 -left-8 w-24 h-24 rounded-full bg-white/5" />
         </div>
 
         <div className="relative pt-4 px-5">
-          {categories.length > 0 && (
-            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
-              {categories.map((c) => {
-                const active = activeCategory === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => setActiveCategory(c.id)}
-                    className="flex flex-col items-center gap-1.5 flex-shrink-0 w-16"
-                  >
-                    <span
-                      className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold bg-white transition-all ${
-                        active ? "text-sprout shadow-md scale-105 ring-2 ring-white" : "text-sprout/70"
-                      }`}
-                    >
-                      {c.name.charAt(0).toUpperCase()}
-                    </span>
-                    <span className={`text-[10px] font-semibold text-center leading-tight truncate w-full ${active ? "text-white" : "text-white/70"}`}>
-                      {c.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           <HeroCarousel items={allItems} currency={currency} onOpenItem={onOpenItem} />
         </div>
       </div>
@@ -1162,7 +1136,7 @@ const STAGES = [
   { key: "served", label: "Served", icon: Truck },
 ];
 
-function OrderTrackingScreen({ initialOrder, restaurant, table, offers, campaign, payment, sessionId, onNewOrder }) {
+function OrderTrackingScreen({ initialOrder, restaurant, table, offers, campaigns, payment, sessionId, onNewOrder }) {
   const [order, setOrder] = useState(initialOrder);
   const [billOpen, setBillOpen] = useState(false);
 
@@ -1196,7 +1170,7 @@ function OrderTrackingScreen({ initialOrder, restaurant, table, offers, campaign
         order={order}
         restaurant={restaurant}
         offers={offers}
-        campaign={campaign}
+        campaigns={campaigns}
         payment={payment}
         sessionId={sessionId}
         onFinalized={(updatedOrder) => { setOrder((prev) => ({ ...prev, ...updatedOrder })); setBillOpen(false); }}
@@ -1264,11 +1238,12 @@ function OrderTrackingScreen({ initialOrder, restaurant, table, offers, campaign
 // ---------- Bill screen (shown once food is served): pick an offer or
 // complete a campaign for a discount, then choose how to pay ----------
 
-function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, onFinalized }) {
-  const [step, setStep] = useState("offers"); // offers -> pay
+function BillScreen({ order, restaurant, offers, campaigns, payment, sessionId, onFinalized }) {
   const [selectedOfferId, setSelectedOfferId] = useState(null);
-  const [campaignFeedback, setCampaignFeedback] = useState(null);
-  const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  // Keyed by campaign id -- a customer can complete more than one campaign
+  // (e.g. the video one AND the audio one) and both discounts stack.
+  const [campaignFeedbacks, setCampaignFeedbacks] = useState({});
+  const [openCampaign, setOpenCampaign] = useState(null);
   const [payMethod, setPayMethod] = useState(payment.cash_enabled ? "cash" : "online_upi");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -1277,11 +1252,24 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
   const subtotal = order.subtotal;
   const eligibleOffers = useMemo(() => offers.filter((o) => subtotal >= o.min_order_value), [offers, subtotal]);
   const selectedOffer = eligibleOffers.find((o) => o.id === selectedOfferId) || null;
+  const completedCampaigns = campaigns.filter((c) => campaignFeedbacks[c.id]);
+  const hasCampaignDiscount = completedCampaigns.length > 0;
 
   const roundMoney = (n) => Math.round(n);
+  // Selecting any campaign discount takes priority over an "offer" (same
+  // either/or rule as before), but multiple campaigns' own discounts --
+  // each computed against the subtotal using that campaign's own type and
+  // value, exactly as the restaurant configured it -- are added together,
+  // capped so the total can never exceed the subtotal itself.
   const discount = roundMoney(
-    campaignFeedback
-      ? campaign.discount_type === "percent" ? (subtotal * campaign.discount_value) / 100 : campaign.discount_value
+    hasCampaignDiscount
+      ? Math.min(
+          subtotal,
+          completedCampaigns.reduce(
+            (sum, c) => sum + (c.discount_type === "percent" ? (subtotal * c.discount_value) / 100 : c.discount_value),
+            0
+          )
+        )
       : selectedOffer
       ? selectedOffer.discount_type === "percent" ? (subtotal * selectedOffer.discount_value) / 100 : selectedOffer.discount_value
       : 0
@@ -1298,9 +1286,10 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          offerId: campaignFeedback ? null : selectedOffer?.id || null,
-          campaignId: campaignFeedback ? campaign.id : null,
-          campaignFeedback: campaignFeedback || null,
+          offerId: hasCampaignDiscount ? null : selectedOffer?.id || null,
+          campaignParticipations: hasCampaignDiscount
+            ? completedCampaigns.map((c) => ({ campaignId: c.id, feedback: campaignFeedbacks[c.id] }))
+            : [],
           paymentMethod: payMethod,
           sessionId,
         }),
@@ -1323,17 +1312,21 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
       </div>
 
       <div className="px-4 pt-5">
-        {(eligibleOffers.length > 0 || campaign) && (
+        {(eligibleOffers.length > 0 || campaigns.length > 0) && (
           <div className="mb-5">
             <p className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Tag size={15} className="text-sprout" /> Want a discount on this bill?</p>
-            <p className="text-xs text-clay mb-2 -mt-1">Pick at most one — offer or campaign, not both.</p>
+            <p className="text-xs text-clay mb-2 -mt-1">
+              {campaigns.length > 1
+                ? "Pick an offer, or complete any/all of the campaigns below — campaign discounts stack."
+                : "Pick at most one — offer or campaign, not both."}
+            </p>
             <div className="grid gap-2">
               {eligibleOffers.map((o) => {
-                const isSelected = selectedOfferId === o.id && !campaignFeedback;
+                const isSelected = selectedOfferId === o.id && !hasCampaignDiscount;
                 return (
                   <button
                     key={o.id}
-                    onClick={() => { setSelectedOfferId(isSelected ? null : o.id); setCampaignFeedback(null); }}
+                    onClick={() => { setSelectedOfferId(isSelected ? null : o.id); }}
                     className={`text-left border rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-colors ${
                       isSelected ? "border-sprout bg-sprout/5" : "border-ink/10 bg-white"
                     }`}
@@ -1351,40 +1344,47 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
                 );
               })}
 
-              {campaign && (
-                campaignFeedback ? (
-                  <div className="text-left border border-sprout bg-sprout/5 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+              {campaigns.map((c) => {
+                const feedback = campaignFeedbacks[c.id];
+                return feedback ? (
+                  <div key={c.id} className="text-left border border-sprout bg-sprout/5 rounded-2xl p-3.5 flex items-center justify-between gap-3">
                     <div>
                       <p className="font-semibold text-ink text-sm flex items-center gap-1.5">
-                        {campaign.media_type === "audio" ? <Mic size={15} /> : <Video size={15} />} {campaign.title}
+                        {c.media_type === "audio" ? <Mic size={15} /> : <Video size={15} />} {c.title}
                       </p>
                       <p className="text-xs text-sprout-dark mt-0.5">
-                        {campaign.discount_type === "percent" ? `${campaign.discount_value}% off` : `${money(campaign.discount_value, currency)} off`} applied
+                        {c.discount_type === "percent" ? `${c.discount_value}% off` : `${money(c.discount_value, currency)} off`} applied
                       </p>
                     </div>
-                    <button onClick={() => setCampaignFeedback(null)} className="text-xs font-semibold text-clay flex-shrink-0">Remove</button>
+                    <button
+                      onClick={() => setCampaignFeedbacks((prev) => { const next = { ...prev }; delete next[c.id]; return next; })}
+                      className="text-xs font-semibold text-clay flex-shrink-0"
+                    >
+                      Remove
+                    </button>
                   </div>
                 ) : (
                   <button
-                    onClick={() => setCampaignModalOpen(true)}
+                    key={c.id}
+                    onClick={() => setOpenCampaign(c)}
                     className="text-left border border-ink/10 bg-white rounded-2xl p-3.5 flex items-center justify-between gap-3"
                   >
                     <div>
                       <p className="font-semibold text-ink text-sm flex items-center gap-1.5">
-                        {campaign.media_type === "audio" ? <Mic size={15} /> : <Video size={15} />} {campaign.title}
+                        {c.media_type === "audio" ? <Mic size={15} /> : <Video size={15} />} {c.title}
                       </p>
                       <p className="text-xs text-clay mt-0.5">
-                        {campaign.description || "Share quick feedback about your meal for a discount."}
+                        {c.description || "Share quick feedback about your meal for a discount."}
                       </p>
                     </div>
                     <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-paper text-ink/60 flex-shrink-0">Participate</span>
                   </button>
-                )
-              )}
+                );
+              })}
             </div>
 
             {discount > 0 && (
-              <div key={campaignFeedback ? "campaign" : selectedOfferId} className="mt-2.5 bg-sprout text-white rounded-2xl px-4 py-3 text-sm font-semibold flex items-center gap-2 animate-pop-in">
+              <div key={hasCampaignDiscount ? completedCampaigns.map((c) => c.id).join(",") : selectedOfferId} className="mt-2.5 bg-sprout text-white rounded-2xl px-4 py-3 text-sm font-semibold flex items-center gap-2 animate-pop-in">
                 <Sparkles size={16} className="flex-shrink-0" />
                 {restaurant.offer_success_message || "Awesome! Your discount has been applied to this bill."}
               </div>
@@ -1445,14 +1445,14 @@ function BillScreen({ order, restaurant, offers, campaign, payment, sessionId, o
         {submitting ? "Preparing your bill..." : "Confirm & see final bill"}
       </button>
 
-      {campaignModalOpen && campaign && (
+      {openCampaign && (
         <CampaignModal
-          campaign={campaign}
-          onClose={() => setCampaignModalOpen(false)}
+          campaign={openCampaign}
+          onClose={() => setOpenCampaign(null)}
           onDone={(feedback) => {
-            setCampaignFeedback(feedback);
+            setCampaignFeedbacks((prev) => ({ ...prev, [openCampaign.id]: feedback }));
             setSelectedOfferId(null);
-            setCampaignModalOpen(false);
+            setOpenCampaign(null);
           }}
         />
       )}
@@ -1602,11 +1602,25 @@ function CampaignModal({ campaign, onClose, onDone }) {
   const [text, setText] = useState("");
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaPreviewName, setMediaPreviewName] = useState("");
+  const [selectedTemplateUrl, setSelectedTemplateUrl] = useState(null);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   const isAudio = campaign.media_type === "audio";
   const MAX_MEDIA_BYTES = 200 * 1024 * 1024; // 200MB
+
+  // Templates can be legacy plain URL strings, or {url, active} objects
+  // once the restaurant starts toggling individual ones on/off -- only the
+  // active ones are ever offered to a customer.
+  const activeTemplates = useMemo(() => {
+    if (isAudio) return [];
+    return (campaign.template_videos || [])
+      .map((t) => (typeof t === "string" ? { url: t, active: true } : t))
+      .filter((t) => t.active !== false);
+  }, [campaign, isAudio]);
+  const hasTemplates = activeTemplates.length > 0;
 
   function handleMedia(e) {
     const file = e.target.files?.[0];
@@ -1617,21 +1631,33 @@ function CampaignModal({ campaign, onClose, onDone }) {
       return;
     }
     setError("");
+    setSelectedTemplateUrl(null);
     setMediaPreviewName(file.name);
     const reader = new FileReader();
     reader.onload = () => setMediaFile(reader.result);
     reader.readAsDataURL(file);
   }
 
+  function pickTemplate(url) {
+    setSelectedTemplateUrl(url);
+    setMediaFile(null);
+    setMediaPreviewName("");
+    setError("");
+  }
+
   async function submit() {
     setError("");
-    if (campaign.requires_video && !mediaFile) {
-      setError(isAudio ? "Please attach a short voice note to continue." : "Please attach a short video to continue.");
+    if (campaign.requires_video && !mediaFile && !selectedTemplateUrl) {
+      setError(isAudio ? "Please attach a short voice note to continue." : hasTemplates ? "Please pick a video below to continue." : "Please attach a short video to continue.");
+      return;
+    }
+    if (!customerName.trim()) {
+      setError("Please enter your name so the restaurant knows who this is from.");
       return;
     }
     setSubmitting(true);
     try {
-      let mediaUrl = "";
+      let mediaUrl = selectedTemplateUrl || "";
       if (mediaFile) {
         const upRes = await fetch("/api/uploads", {
           method: "POST",
@@ -1647,6 +1673,8 @@ function CampaignModal({ campaign, onClose, onDone }) {
         rating,
         textFeedback: text,
         mediaUrl,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
         agreedToSubmitContent: agreedTerms,
         agreedToInstagramUse: campaign.allow_instagram_repost ? agreedInsta : undefined,
       });
@@ -1704,31 +1732,88 @@ function CampaignModal({ campaign, onClose, onDone }) {
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Tell us what you liked or what we can improve..."
+              placeholder={hasTemplates ? "Add a short caption for your video (optional)..." : "Tell us what you liked or what we can improve..."}
               rows={3}
               className="w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-sprout"
             />
 
-            <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
-              {campaign.requires_video
-                ? (isAudio ? "Record a short voice note" : "Upload a short video")
-                : (isAudio ? "Add a voice note (optional)" : "Upload a photo or video (optional)")}
-            </p>
-            <label className="flex items-center gap-3 border border-dashed border-ink/25 rounded-card p-3 cursor-pointer">
-              <span className="w-10 h-10 rounded-lg bg-clay-light flex items-center justify-center flex-shrink-0">
-                {mediaPreviewName ? (
-                  <CheckCircle2 size={18} className="text-sprout" />
-                ) : isAudio ? (
-                  <Mic size={18} className="text-clay" />
-                ) : (
-                  <Video size={18} className="text-clay" />
-                )}
-              </span>
-              <span className="text-xs text-clay truncate">
-                {mediaPreviewName || (isAudio ? "Tap to record or choose a voice note" : "Tap to record or choose a video")}
-              </span>
-              <input type="file" accept={isAudio ? "audio/*" : "video/*"} onChange={handleMedia} className="hidden" />
-            </label>
+            {hasTemplates ? (
+              <>
+                <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
+                  Pick a video to post {campaign.requires_video ? "" : "(optional)"}
+                </p>
+                <p className="text-xs text-clay -mt-1 mb-2.5">
+                  Choose one of the restaurant's clips below and add your caption above -- no filming needed.
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {activeTemplates.map((t, idx) => {
+                    const isSelected = selectedTemplateUrl === t.url;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => pickTemplate(t.url)}
+                        className={`relative rounded-lg overflow-hidden border-2 ${isSelected ? "border-sprout" : "border-transparent"}`}
+                      >
+                        <video src={t.url} className="w-full h-20 object-cover bg-ink/5" muted />
+                        {isSelected && (
+                          <span className="absolute inset-0 bg-sprout/25 flex items-center justify-center">
+                            <CheckCircle2 size={22} className="text-white drop-shadow" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label className="flex items-center gap-2 text-xs text-clay mt-2.5">
+                  <span>Prefer to use your own video instead?</span>
+                  <span className="text-sprout-dark font-semibold cursor-pointer underline">
+                    Upload one
+                    <input type="file" accept="video/*" onChange={handleMedia} className="hidden" />
+                  </span>
+                </label>
+                {mediaPreviewName && <p className="text-xs text-ink/70 mt-1">Using your upload: {mediaPreviewName}</p>}
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
+                  {campaign.requires_video
+                    ? (isAudio ? "Record a short voice note" : "Upload a short video")
+                    : (isAudio ? "Add a voice note (optional)" : "Upload a photo or video (optional)")}
+                </p>
+                <label className="flex items-center gap-3 border border-dashed border-ink/25 rounded-card p-3 cursor-pointer">
+                  <span className="w-10 h-10 rounded-lg bg-clay-light flex items-center justify-center flex-shrink-0">
+                    {mediaPreviewName ? (
+                      <CheckCircle2 size={18} className="text-sprout" />
+                    ) : isAudio ? (
+                      <Mic size={18} className="text-clay" />
+                    ) : (
+                      <Video size={18} className="text-clay" />
+                    )}
+                  </span>
+                  <span className="text-xs text-clay truncate">
+                    {mediaPreviewName || (isAudio ? "Tap to record or choose a voice note" : "Tap to record or choose a video")}
+                  </span>
+                  <input type="file" accept={isAudio ? "audio/*" : "video/*"} onChange={handleMedia} className="hidden" />
+                </label>
+              </>
+            )}
+
+            <p className="text-sm font-semibold text-ink mt-4 mb-1.5">Who's this from?</p>
+            <div className="grid gap-2.5">
+              <input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Your name"
+                className="w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-sprout"
+              />
+              <input
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="Phone number (optional)"
+                inputMode="tel"
+                className="w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-sprout"
+              />
+            </div>
 
             {error && <p className="text-xs text-chili-dark font-medium mt-3">{error}</p>}
 

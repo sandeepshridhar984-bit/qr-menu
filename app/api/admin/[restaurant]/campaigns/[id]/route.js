@@ -6,23 +6,28 @@ export async function PATCH(request, { params }) {
   const campaign = db.prepare("SELECT * FROM campaigns WHERE id = ?").get(params.id);
   if (!campaign) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const fields = ["title", "description", "discount_type", "discount_value", "requires_video", "allow_instagram_repost", "terms_text", "active", "media_type"];
+  const fields = ["title", "description", "discount_type", "discount_value", "requires_video", "allow_instagram_repost", "terms_text", "active", "media_type", "template_videos"];
   const boolFields = ["requires_video", "allow_instagram_repost", "active"];
+  const jsonFields = ["template_videos"];
   const updates = {};
   for (const f of fields) {
-    if (f in body) updates[f] = boolFields.includes(f) ? (body[f] ? 1 : 0) : body[f];
+    if (f in body) {
+      if (boolFields.includes(f)) updates[f] = body[f] ? 1 : 0;
+      else if (jsonFields.includes(f)) updates[f] = JSON.stringify(Array.isArray(body[f]) ? body[f].slice(0, 6) : []);
+      else updates[f] = body[f];
+    }
   }
   const keys = Object.keys(updates);
   if (keys.length === 0) return NextResponse.json({ error: "No changes" }, { status: 400 });
 
   const applyUpdate = db.transaction(() => {
     if (updates.active === 1) {
-      // Same single-active rule as campaign creation: turning this one on
-      // pauses every other campaign for this restaurant, so the customer
-      // menu (which just grabs "the" active campaign) always shows the one
-      // that was just switched on.
-      db.prepare("UPDATE campaigns SET active = 0 WHERE restaurant_id = ? AND id != ?").run(
+      // Same rule as creation: pause other campaigns of the same media_type
+      // only, so one video + one audio campaign can stay active together.
+      const mediaType = updates.media_type || campaign.media_type;
+      db.prepare("UPDATE campaigns SET active = 0 WHERE restaurant_id = ? AND media_type = ? AND id != ?").run(
         campaign.restaurant_id,
+        mediaType,
         campaign.id
       );
     }

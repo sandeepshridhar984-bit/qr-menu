@@ -72,7 +72,8 @@ export default function DashboardPage({ params }) {
     onboarding_fee: subscriptionRow.onboarding_fee ?? globalSettingsForBilling?.onboarding_fee ?? 10000,
     monthly_fee: subscriptionRow.monthly_fee ?? globalSettingsForBilling?.monthly_fee ?? 7000,
   };
-  const campaigns = db.prepare("SELECT * FROM campaigns WHERE restaurant_id = ?").all(restaurant.id);
+  const campaigns = db.prepare("SELECT * FROM campaigns WHERE restaurant_id = ?").all(restaurant.id)
+    .map((c) => ({ ...c, template_videos: JSON.parse(c.template_videos || "[]") }));
   const taxes = db.prepare("SELECT * FROM restaurant_taxes WHERE restaurant_id = ?").all(restaurant.id);
   const platformContact = db.prepare("SELECT * FROM platform_contact WHERE id = 1").get();
   const reviews = db

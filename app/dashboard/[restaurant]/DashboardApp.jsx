@@ -136,22 +136,6 @@ export default function DashboardApp({
         </div>
       </header>
 
-      <nav className="bg-white border-b border-ink/10 px-6 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-6xl mx-auto flex gap-1 overflow-x-auto no-scrollbar">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`whitespace-nowrap px-3.5 py-3 text-sm font-medium border-b-2 transition-colors ${
-                tab === t ? "border-chili text-chili-dark" : "border-transparent text-ink/60 hover:text-ink"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </nav>
-
       {restaurant.status === "pending_payment" && !paymentModalOpen && (
         <div className="bg-turmeric/20 border-b border-turmeric/40 px-6 py-2.5">
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 flex-wrap">
@@ -173,31 +157,52 @@ export default function DashboardApp({
         />
       )}
 
+      {/* Each section is a heading the client taps to open -- Orders opens
+          first by default, and only one section's list shows at a time,
+          right underneath its own heading. */}
       <div className="max-w-6xl mx-auto px-6 py-6">
-        {tab === "Orders" && <OrdersTab restaurant={restaurant} orders={orders} setOrders={setOrders} askConfirm={askConfirm} />}
-        {tab === "Menu" && (
-          <MenuTab restaurant={restaurant} categories={categories} setCategories={setCategories} items={items} setItems={setItems} askConfirm={askConfirm} />
-        )}
-        {tab === "Offers" && <OffersTab restaurant={restaurant} offers={offers} setOffers={setOffers} askConfirm={askConfirm} />}
-        {tab === "Campaigns" && (
-          <CampaignsTab restaurant={restaurant} campaigns={campaigns} setCampaigns={setCampaigns} reviews={reviews} setReviews={setReviews} askConfirm={askConfirm} />
-        )}
-        {tab === "Taxes" && <TaxesTab restaurant={restaurant} taxes={taxes} setTaxes={setTaxes} askConfirm={askConfirm} />}
-        {tab === "Tables & QR" && <TablesTab restaurant={restaurant} tables={tables} setTables={setTables} />}
-        {tab === "Customer View" && <CustomerViewTab restaurant={restaurant} tables={tables} onRestaurantUpdate={setRestaurant} />}
-        {tab === "Payment settings" && (
-          <PaymentSettingsTab restaurant={restaurant} paymentSettings={paymentSettings} setPaymentSettings={setPaymentSettings} />
-        )}
-        {tab === "Billing" && (
-          <BillingTab
-            restaurant={restaurant}
-            subscription={subscription}
-            platformContact={platformContact}
-            orders={orders}
-            paymentProofs={paymentProofs}
-            setPaymentProofs={setPaymentProofs}
-          />
-        )}
+        {TABS.map((t) => {
+          const isOpen = tab === t;
+          return (
+            <div key={t} className="border-b border-ink/10">
+              <button
+                onClick={() => setTab(isOpen ? null : t)}
+                className="w-full flex items-center justify-between py-4 text-left"
+              >
+                <span className={`font-display font-bold text-base ${isOpen ? "text-chili-dark" : "text-ink"}`}>{t}</span>
+                <ChevronDown size={18} className={`text-ink/40 transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+              </button>
+              {isOpen && (
+                <div className="pb-7">
+                  {t === "Orders" && <OrdersTab restaurant={restaurant} orders={orders} setOrders={setOrders} askConfirm={askConfirm} paymentSettings={paymentSettings} />}
+                  {t === "Menu" && (
+                    <MenuTab restaurant={restaurant} categories={categories} setCategories={setCategories} items={items} setItems={setItems} askConfirm={askConfirm} />
+                  )}
+                  {t === "Offers" && <OffersTab restaurant={restaurant} offers={offers} setOffers={setOffers} askConfirm={askConfirm} />}
+                  {t === "Campaigns" && (
+                    <CampaignsTab restaurant={restaurant} campaigns={campaigns} setCampaigns={setCampaigns} reviews={reviews} setReviews={setReviews} askConfirm={askConfirm} />
+                  )}
+                  {t === "Taxes" && <TaxesTab restaurant={restaurant} taxes={taxes} setTaxes={setTaxes} askConfirm={askConfirm} />}
+                  {t === "Tables & QR" && <TablesTab restaurant={restaurant} tables={tables} setTables={setTables} />}
+                  {t === "Customer View" && <CustomerViewTab restaurant={restaurant} tables={tables} onRestaurantUpdate={setRestaurant} />}
+                  {t === "Payment settings" && (
+                    <PaymentSettingsTab restaurant={restaurant} paymentSettings={paymentSettings} setPaymentSettings={setPaymentSettings} />
+                  )}
+                  {t === "Billing" && (
+                    <BillingTab
+                      restaurant={restaurant}
+                      subscription={subscription}
+                      platformContact={platformContact}
+                      orders={orders}
+                      paymentProofs={paymentProofs}
+                      setPaymentProofs={setPaymentProofs}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {newOrderToast && (
@@ -1114,6 +1119,7 @@ function OfferFormModal({ restaurant, onClose, onSaved }) {
 
 function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews, askConfirm }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState(null);
 
   async function toggleActive(c) {
     const newActive = c.active ? 0 : 1;
@@ -1124,9 +1130,10 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
       setCampaigns((prev) =>
         prev.map((x) => {
           if (x.id === c.id) return { ...x, active: newActive };
-          // Only one campaign can be active at a time -- turning this one
-          // on pauses every other one, matching what the server just did.
-          return newActive ? { ...x, active: 0 } : x;
+          // Turning this one on only pauses other campaigns of the SAME
+          // media type -- one video campaign and one audio campaign can
+          // both stay active together.
+          return newActive && x.media_type === c.media_type ? { ...x, active: 0 } : x;
         })
       );
     }
@@ -1157,8 +1164,10 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
   return (
     <div>
       <p className="text-sm text-clay mb-4 max-w-lg">
-        At checkout, customers can complete a quick video-feedback campaign for a discount that
-        applies immediately to their current order. Only one active campaign shows at a time.
+        At checkout, customers can complete a quick video or voice-note feedback campaign for a
+        discount that applies immediately to their current order. You can run one active video
+        campaign and one active audio campaign at the same time -- a customer who completes both
+        gets both discounts added together on their bill.
       </p>
       <button onClick={() => setShowForm(true)} className="mb-5 bg-ink text-paper px-4 py-2 rounded-card text-sm font-semibold hover:bg-ink/90 transition-colors">
         + Create campaign
@@ -1182,6 +1191,7 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
                     {c.discount_type === "percent" ? `${c.discount_value}% off` : `${money(c.discount_value, restaurant.currency)} off`} this order
                     {" · "}{c.media_type === "audio" ? "voice note" : "video"} {c.requires_video ? "required" : "optional"}
                     {c.allow_instagram_repost ? " · Instagram reuse allowed (with separate consent)" : ""}
+                    {c.media_type === "video" ? ` · ${(c.template_videos || []).filter((t) => (typeof t === "string" ? true : t.active !== false)).length}/${(c.template_videos || []).length} template videos shown` : ""}
                   </p>
                 </div>
               </div>
@@ -1189,6 +1199,7 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
                 <button onClick={() => toggleActive(c)} className={`text-xs font-semibold px-3 py-1 rounded-full ${c.active ? "bg-herb/15 text-herb" : "bg-clay-light text-clay"}`}>
                   {c.active ? "Active" : "Paused"}
                 </button>
+                <button onClick={() => setEditingCampaign(c)} className="text-xs font-semibold text-ink/60">Edit</button>
                 <button onClick={() => deleteCampaign(c)} className="text-xs font-semibold text-chili-dark">Delete</button>
               </div>
             </div>
@@ -1196,16 +1207,24 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
         ))}
       </div>
 
-      <h3 className="font-display font-bold text-ink mb-2.5">Submissions</h3>
+      <h3 className="font-display font-bold text-ink mb-1">Submissions</h3>
+      <p className="text-xs text-clay mb-2.5">Every video, voice note, and text feedback customers have sent in, with who sent it.</p>
       <div className="grid gap-2">
         {reviews.length === 0 && <p className="text-clay text-sm">No submissions yet.</p>}
         {reviews.map((r) => (
           <Card key={r.id} className="p-3.5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-0.5">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <Star key={n} size={14} className={n <= (r.rating || 0) ? "fill-turmeric text-turmeric" : "text-clay-light"} />
-                ))}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                {r.customer_name && (
+                  <p className="font-semibold text-ink text-sm">
+                    {r.customer_name}{r.customer_phone ? ` · ${r.customer_phone}` : ""}
+                  </p>
+                )}
+                <div className="flex items-center gap-0.5 mt-0.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Star key={n} size={13} className={n <= (r.rating || 0) ? "fill-turmeric text-turmeric" : "text-clay-light"} />
+                  ))}
+                </div>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
                 <span className="text-xs text-clay">{r.discount_code}</span>
@@ -1215,7 +1234,7 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
             {r.text_feedback && <p className="text-xs text-ink/70 mt-1.5">{r.text_feedback}</p>}
             {r.video_url && (
               <a href={r.video_url} target="_blank" rel="noreferrer" className="text-xs text-chili font-medium mt-1.5 inline-flex items-center gap-1">
-                <Video size={12} /> View video
+                <Video size={12} /> View video/audio
               </a>
             )}
           </Card>
@@ -1228,10 +1247,23 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
           onClose={() => setShowForm(false)}
           onSaved={(c) => {
             // The new campaign comes back active=1, and the server just
-            // paused every other campaign for this restaurant to match --
-            // mirror that here too so the list doesn't show two "Active" pills.
-            setCampaigns((prev) => [...prev.map((x) => ({ ...x, active: 0 })), c]);
+            // paused every other campaign of the same media_type to match --
+            // mirror that here too so the list doesn't show two "Active"
+            // pills for the same type.
+            setCampaigns((prev) => [...prev.map((x) => (x.media_type === c.media_type ? { ...x, active: 0 } : x)), c]);
             setShowForm(false);
+          }}
+        />
+      )}
+
+      {editingCampaign && (
+        <CampaignFormModal
+          restaurant={restaurant}
+          campaign={editingCampaign}
+          onClose={() => setEditingCampaign(null)}
+          onSaved={(c) => {
+            setCampaigns((prev) => prev.map((x) => (x.id === c.id ? c : (c.active && x.media_type === c.media_type ? { ...x, active: 0 } : x))));
+            setEditingCampaign(null);
           }}
         />
       )}
@@ -1239,34 +1271,86 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
   );
 }
 
-function CampaignFormModal({ restaurant, onClose, onSaved }) {
+function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
+  const isEditing = !!campaign;
   const [form, setForm] = useState({
-    title: "Share a video, get a discount",
-    description: "Post a quick video about your food experience and get a discount on your next visit.",
-    discount_type: "percent", discount_value: "10",
-    requires_video: true, allow_instagram_repost: false, media_type: "video",
-    terms_text: "We're asking for honest feedback, not a positive review. Your video/photo may be used internally to improve our food and service.",
+    title: campaign?.title ?? "Share a video, get a discount",
+    description: campaign?.description ?? "Post a quick video about your food experience and get a discount on your next visit.",
+    discount_type: campaign?.discount_type ?? "percent",
+    discount_value: campaign?.discount_value ?? "10",
+    requires_video: campaign ? !!campaign.requires_video : true,
+    allow_instagram_repost: campaign ? !!campaign.allow_instagram_repost : false,
+    media_type: campaign?.media_type ?? "video",
+    terms_text: campaign?.terms_text ?? "We're asking for honest feedback, not a positive review. Your video/photo may be used internally to improve our food and service.",
+    template_videos: (campaign?.template_videos ?? []).map((t) => (typeof t === "string" ? { url: t, active: true } : t)),
   });
+  const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const MAX_TEMPLATE_BYTES = 200 * 1024 * 1024; // 200MB
+
+  async function addTemplateVideo(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (form.template_videos.length >= 6) {
+      setError("You can upload up to 6 template videos.");
+      return;
+    }
+    if (file.size > MAX_TEMPLATE_BYTES) {
+      setError("That video is too large (max 200MB). Please choose a shorter or lower-quality clip.");
+      return;
+    }
+    setError("");
+    setUploadingTemplate(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const upRes = await fetch("/api/uploads", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataUrl, maxBytes: MAX_TEMPLATE_BYTES }),
+      });
+      const upData = await upRes.json();
+      if (!upRes.ok) throw new Error(upData.error);
+      setForm((f) => ({ ...f, template_videos: [...f.template_videos, { url: upData.url, active: true }] }));
+    } catch (e2) {
+      setError(e2.message || "Could not upload that video.");
+    } finally {
+      setUploadingTemplate(false);
+    }
+  }
+
+  function removeTemplateVideo(idx) {
+    setForm((f) => ({ ...f, template_videos: f.template_videos.filter((_, i) => i !== idx) }));
+  }
+
+  function toggleTemplateVideo(idx) {
+    setForm((f) => ({
+      ...f,
+      template_videos: f.template_videos.map((t, i) => (i === idx ? { ...t, active: !t.active } : t)),
+    }));
+  }
 
   async function save() {
     if (!form.title.trim() || !form.discount_value) { setError("Title and discount value are required."); return; }
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/${restaurant.slug}/campaigns`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      const url = isEditing
+        ? `/api/admin/${restaurant.slug}/campaigns/${campaign.id}`
+        : `/api/admin/${restaurant.slug}/campaigns`;
+      const res = await fetch(url, {
+        method: isEditing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      onSaved(data.campaign);
+      // PATCH only returns { ok: true }, not the updated row -- build the
+      // updated campaign locally so the list reflects the edit immediately.
+      onSaved(isEditing ? { ...campaign, ...form } : data.campaign);
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   }
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-paper rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-display text-lg font-bold text-ink mb-4">Create video feedback campaign</h3>
+        <h3 className="font-display text-lg font-bold text-ink mb-4">{isEditing ? "Edit campaign" : "Create video feedback campaign"}</h3>
         <div className="grid gap-3">
           <Field label="Title"><Input value={form.title} onChange={(v) => setForm({ ...form, title: v })} /></Field>
           <Field label="Description shown to customers">
@@ -1299,6 +1383,43 @@ function CampaignFormModal({ restaurant, onClose, onSaved }) {
               </button>
             </div>
           </Field>
+
+          {form.media_type === "video" && (
+            <div className="border border-ink/10 rounded-card p-3.5 bg-white">
+              <p className="text-xs font-semibold text-ink mb-1">Template videos ({form.template_videos.length}/6)</p>
+              <p className="text-xs text-clay mb-2.5">
+                Upload up to 6 short promo clips of your own. Customers pick one of these and add a
+                short caption instead of having to film and edit their own video during the meal --
+                much more realistic in the few minutes before they ask for the bill. Untick a video to
+                hide it from customers without deleting it. Leave all empty to keep the old "customer
+                uploads their own video" flow.
+              </p>
+              <div className="grid grid-cols-3 gap-2 mb-2.5">
+                {form.template_videos.map((t, idx) => (
+                  <div key={idx} className={`relative border rounded-lg overflow-hidden bg-ink/5 ${t.active ? "border-ink/10" : "border-ink/10 opacity-40"}`}>
+                    <video src={t.url} className="w-full h-16 object-cover" muted />
+                    <button
+                      type="button"
+                      onClick={() => removeTemplateVideo(idx)}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-ink/70 text-white text-xs flex items-center justify-center"
+                    >
+                      ×
+                    </button>
+                    <label className="absolute bottom-1 left-1 right-1 bg-white/90 rounded px-1.5 py-0.5 flex items-center gap-1 text-[10px] font-semibold text-ink cursor-pointer">
+                      <input type="checkbox" checked={t.active} onChange={() => toggleTemplateVideo(idx)} className="w-3 h-3" /> Shown
+                    </label>
+                  </div>
+                ))}
+              </div>
+              {form.template_videos.length < 6 && (
+                <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink/70 border border-dashed border-ink/25 rounded-card px-3 py-2 cursor-pointer">
+                  <Upload size={13} /> {uploadingTemplate ? "Uploading..." : "Add a template video"}
+                  <input type="file" accept="video/*" onChange={addTemplateVideo} disabled={uploadingTemplate} className="hidden" />
+                </label>
+              )}
+            </div>
+          )}
+
           <label className="flex items-center gap-2 text-sm text-ink">
             <input type="checkbox" checked={form.requires_video} onChange={(e) => setForm({ ...form, requires_video: e.target.checked })} />
             {form.media_type === "audio" ? "Require a voice note (uncheck to also allow text-only feedback)" : "Require a video (uncheck to also allow text-only feedback)"}
@@ -1313,8 +1434,8 @@ function CampaignFormModal({ restaurant, onClose, onSaved }) {
         {error && <p className="text-xs text-chili-dark font-medium mt-3">{error}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 border border-ink/15 text-ink font-semibold py-2.5 rounded-card">Cancel</button>
-          <button disabled={saving} onClick={save} className="flex-1 bg-chili text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
-            {saving ? "Saving..." : "Create campaign"}
+          <button disabled={saving || uploadingTemplate} onClick={save} className="flex-1 bg-chili text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
+            {saving ? "Saving..." : isEditing ? "Save changes" : "Create campaign"}
           </button>
         </div>
       </div>
