@@ -8,9 +8,20 @@ import {
   Eye, Bell, CreditCard, Check, Camera, Video, Star, QrCode,
   Smartphone, RefreshCw, ExternalLink, Printer, Upload, ChefHat,
   Mic, Plus, Trash2, Sparkles, ChevronUp, ChevronDown,
+  ClipboardList, UtensilsCrossed, Tag, Percent, Receipt, Menu as MenuIcon,
 } from "lucide-react";
 
-const TABS = ["Orders", "Menu", "Offers", "Campaigns", "Taxes", "Tables & QR", "Customer View", "Payment settings", "Billing"];
+const TABS = [
+  { name: "Orders", icon: ClipboardList },
+  { name: "Menu", icon: UtensilsCrossed },
+  { name: "Offers", icon: Tag },
+  { name: "Campaigns", icon: Video },
+  { name: "Taxes", icon: Percent },
+  { name: "Tables & QR", icon: QrCode },
+  { name: "Customer View", icon: Eye },
+  { name: "Payment settings", icon: CreditCard },
+  { name: "Billing", icon: Receipt },
+];
 const STATUS_FLOW = ["pending", "preparing", "served", "completed"];
 const SPICE_LEVELS = ["none", "mild", "medium", "hot"];
 
@@ -95,17 +106,17 @@ export default function DashboardApp({
 
   return (
     <main className="min-h-screen bg-paper">
-      <header className="bg-gradient-to-r from-ink to-[#1a2318] px-6 py-5">
+      <header className="bg-white border-b border-ink/10 px-6 py-5">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             {restaurant.logo_image_url ? (
-              <img src={restaurant.logo_image_url} className="w-11 h-11 rounded-xl object-cover" alt="" />
+              <img src={restaurant.logo_image_url} className="w-11 h-11 rounded-xl object-cover ring-2 ring-sprout/15" alt="" />
             ) : (
               <Monogram name={restaurant.name} size="sm" className="w-11 h-11 text-base" />
             )}
             <div>
-              <p className="font-display font-bold text-paper leading-tight">{restaurant.name}</p>
-              <p className="text-xs text-paper/50">{userName ? `Signed in as ${userName}` : "Restaurant dashboard"}</p>
+              <p className="font-display font-bold text-ink leading-tight">{restaurant.name}</p>
+              <p className="text-xs text-clay">{userName ? `Signed in as ${userName}` : "Restaurant dashboard"}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -113,7 +124,7 @@ export default function DashboardApp({
               href={`/dashboard/${restaurant.slug}/kitchen`}
               target="_blank"
               rel="noreferrer"
-              className="text-xs font-semibold bg-turmeric/25 text-chili-dark px-3.5 py-2 rounded-full hover:bg-turmeric/40 transition-colors inline-flex items-center gap-1.5"
+              className="text-xs font-semibold bg-sprout/10 text-sprout-dark px-3.5 py-2 rounded-full hover:bg-sprout/20 transition-colors inline-flex items-center gap-1.5"
               title="Open this on a kitchen tablet/screen — live order tickets, no email needed"
             >
               <ChefHat size={14} /> Kitchen Display
@@ -123,13 +134,13 @@ export default function DashboardApp({
                 href={`/r/${restaurant.slug}/table/${previewTableNumber}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs font-semibold bg-white/10 text-paper px-3.5 py-2 rounded-full hover:bg-white/20 transition-colors inline-flex items-center gap-1.5"
+                className="text-xs font-semibold bg-paper text-ink border border-ink/10 px-3.5 py-2 rounded-full hover:bg-ink/5 transition-colors inline-flex items-center gap-1.5"
               >
                 <Eye size={14} /> View customer menu
               </a>
             )}
             <StatusPill status={restaurant.status} />
-            <button onClick={logout} className="text-xs font-medium text-paper/60 hover:text-paper transition-colors">
+            <button onClick={logout} className="text-xs font-medium text-clay hover:text-ink transition-colors">
               Log out
             </button>
           </div>
@@ -157,52 +168,73 @@ export default function DashboardApp({
         />
       )}
 
-      {/* Each section is a heading the client taps to open -- Orders opens
-          first by default, and only one section's list shows at a time,
-          right underneath its own heading. */}
-      <div className="max-w-6xl mx-auto px-6 py-6">
-        {TABS.map((t) => {
-          const isOpen = tab === t;
-          return (
-            <div key={t} className="border-b border-ink/10">
-              <button
-                onClick={() => setTab(isOpen ? null : t)}
-                className="w-full flex items-center justify-between py-4 text-left"
-              >
-                <span className={`font-display font-bold text-base ${isOpen ? "text-chili-dark" : "text-ink"}`}>{t}</span>
-                <ChevronDown size={18} className={`text-ink/40 transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`} />
-              </button>
-              {isOpen && (
-                <div className="pb-7">
-                  {t === "Orders" && <OrdersTab restaurant={restaurant} orders={orders} setOrders={setOrders} askConfirm={askConfirm} paymentSettings={paymentSettings} />}
-                  {t === "Menu" && (
-                    <MenuTab restaurant={restaurant} categories={categories} setCategories={setCategories} items={items} setItems={setItems} askConfirm={askConfirm} />
-                  )}
-                  {t === "Offers" && <OffersTab restaurant={restaurant} offers={offers} setOffers={setOffers} askConfirm={askConfirm} />}
-                  {t === "Campaigns" && (
-                    <CampaignsTab restaurant={restaurant} campaigns={campaigns} setCampaigns={setCampaigns} reviews={reviews} setReviews={setReviews} askConfirm={askConfirm} />
-                  )}
-                  {t === "Taxes" && <TaxesTab restaurant={restaurant} taxes={taxes} setTaxes={setTaxes} askConfirm={askConfirm} />}
-                  {t === "Tables & QR" && <TablesTab restaurant={restaurant} tables={tables} setTables={setTables} />}
-                  {t === "Customer View" && <CustomerViewTab restaurant={restaurant} tables={tables} onRestaurantUpdate={setRestaurant} />}
-                  {t === "Payment settings" && (
-                    <PaymentSettingsTab restaurant={restaurant} paymentSettings={paymentSettings} setPaymentSettings={setPaymentSettings} />
-                  )}
-                  {t === "Billing" && (
-                    <BillingTab
-                      restaurant={restaurant}
-                      subscription={subscription}
-                      platformContact={platformContact}
-                      orders={orders}
-                      paymentProofs={paymentProofs}
-                      setPaymentProofs={setPaymentProofs}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+      {/* Left sidebar for navigation on wider screens; a horizontal
+          scrollable strip of the same items on narrow ones. Clicking an
+          item shows its content in the panel next to (or below) it. */}
+      <div className="max-w-6xl mx-auto px-6 py-6 flex gap-6 items-start">
+        <aside className="hidden md:block w-56 flex-shrink-0 sticky top-6">
+          <nav className="bg-white border border-ink/10 rounded-2xl p-2">
+            {TABS.map(({ name, icon: Icon }) => {
+              const isActive = tab === name;
+              return (
+                <button
+                  key={name}
+                  onClick={() => setTab(name)}
+                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm transition-colors text-left ${
+                    isActive ? "bg-sprout/10 text-sprout-dark font-semibold" : "text-ink/60 hover:bg-paper hover:text-ink font-medium"
+                  }`}
+                >
+                  <Icon size={16} className="flex-shrink-0" />
+                  {name}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <div className="flex-1 min-w-0">
+          <div className="md:hidden overflow-x-auto no-scrollbar -mx-6 px-6 pb-4 flex gap-2">
+            {TABS.map(({ name, icon: Icon }) => {
+              const isActive = tab === name;
+              return (
+                <button
+                  key={name}
+                  onClick={() => setTab(name)}
+                  className={`flex-shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-full text-xs font-semibold border ${
+                    isActive ? "bg-sprout text-white border-sprout" : "bg-white text-ink/60 border-ink/10"
+                  }`}
+                >
+                  <Icon size={13} /> {name}
+                </button>
+              );
+            })}
+          </div>
+
+          {tab === "Orders" && <OrdersTab restaurant={restaurant} orders={orders} setOrders={setOrders} askConfirm={askConfirm} paymentSettings={paymentSettings} />}
+          {tab === "Menu" && (
+            <MenuTab restaurant={restaurant} categories={categories} setCategories={setCategories} items={items} setItems={setItems} askConfirm={askConfirm} />
+          )}
+          {tab === "Offers" && <OffersTab restaurant={restaurant} offers={offers} setOffers={setOffers} askConfirm={askConfirm} />}
+          {tab === "Campaigns" && (
+            <CampaignsTab restaurant={restaurant} campaigns={campaigns} setCampaigns={setCampaigns} reviews={reviews} setReviews={setReviews} askConfirm={askConfirm} />
+          )}
+          {tab === "Taxes" && <TaxesTab restaurant={restaurant} taxes={taxes} setTaxes={setTaxes} askConfirm={askConfirm} />}
+          {tab === "Tables & QR" && <TablesTab restaurant={restaurant} tables={tables} setTables={setTables} />}
+          {tab === "Customer View" && <CustomerViewTab restaurant={restaurant} tables={tables} onRestaurantUpdate={setRestaurant} />}
+          {tab === "Payment settings" && (
+            <PaymentSettingsTab restaurant={restaurant} paymentSettings={paymentSettings} setPaymentSettings={setPaymentSettings} />
+          )}
+          {tab === "Billing" && (
+            <BillingTab
+              restaurant={restaurant}
+              subscription={subscription}
+              platformContact={platformContact}
+              orders={orders}
+              paymentProofs={paymentProofs}
+              setPaymentProofs={setPaymentProofs}
+            />
+          )}
+        </div>
       </div>
 
       {newOrderToast && (
@@ -247,11 +279,11 @@ function ConfirmDialog({ message, onCancel, onConfirm }) {
 
 function StatusPill({ status }) {
   const map = {
-    active: ["Active", "bg-herb/20 text-herb"],
+    active: ["Active", "bg-sprout/15 text-sprout-dark"],
     grace_period: ["Grace period", "bg-turmeric/25 text-chili-dark"],
     pending_payment: ["Payment due", "bg-turmeric/25 text-chili-dark"],
-    suspended: ["Suspended", "bg-chili/20 text-chili-dark"],
-    trial: ["Free trial", "bg-paper/20 text-paper"],
+    suspended: ["Suspended", "bg-chili/15 text-chili-dark"],
+    trial: ["Free trial", "bg-ink/8 text-ink/70"],
   };
   const [label, cls] = map[status] || map.active;
   return <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cls}`}>{label}</span>;
@@ -976,7 +1008,7 @@ function ItemFormModal({ restaurant, categoryId, categories, item, onClose, onSa
 
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 border border-ink/15 text-ink font-semibold py-2.5 rounded-card">Cancel</button>
-          <button disabled={saving} onClick={save} className="flex-1 bg-chili text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
+          <button disabled={saving} onClick={save} className="flex-1 bg-sprout text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
             {saving ? "Saving..." : isEdit ? "Save changes" : "Add item"}
           </button>
         </div>
@@ -1106,7 +1138,7 @@ function OfferFormModal({ restaurant, onClose, onSaved }) {
         {error && <p className="text-xs text-chili-dark font-medium mt-3">{error}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 border border-ink/15 text-ink font-semibold py-2.5 rounded-card">Cancel</button>
-          <button disabled={saving} onClick={save} className="flex-1 bg-chili text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
+          <button disabled={saving} onClick={save} className="flex-1 bg-sprout text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
             {saving ? "Saving..." : "Create"}
           </button>
         </div>
@@ -1208,36 +1240,44 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
       </div>
 
       <h3 className="font-display font-bold text-ink mb-1">Submissions</h3>
-      <p className="text-xs text-clay mb-2.5">Every video, voice note, and text feedback customers have sent in, with who sent it.</p>
-      <div className="grid gap-2">
-        {reviews.length === 0 && <p className="text-clay text-sm">No submissions yet.</p>}
+      <p className="text-xs text-clay mb-2.5">Every video, voice note, and text feedback customers have sent in, with who sent it and when.</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {reviews.length === 0 && <p className="text-clay text-sm col-span-full">No submissions yet.</p>}
         {reviews.map((r) => (
-          <Card key={r.id} className="p-3.5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                {r.customer_name && (
-                  <p className="font-semibold text-ink text-sm">
-                    {r.customer_name}{r.customer_phone ? ` · ${r.customer_phone}` : ""}
-                  </p>
-                )}
-                <div className="flex items-center gap-0.5 mt-0.5">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <Star key={n} size={13} className={n <= (r.rating || 0) ? "fill-turmeric text-turmeric" : "text-clay-light"} />
-                  ))}
+          <div key={r.id} className="bg-white border border-ink/10 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+            {r.video_url ? (
+              r.video_url.match(/\.(mp3|m4a|wav|ogg|webm)(\?|$)/i) ? (
+                <div className="w-full h-24 bg-sprout/10 flex items-center justify-center">
+                  <Mic size={26} className="text-sprout-dark" />
                 </div>
+              ) : (
+                <video src={r.video_url} className="w-full h-24 object-cover bg-ink/5" muted />
+              )
+            ) : (
+              <div className="w-full h-24 bg-paper flex items-center justify-center">
+                <Star size={22} className="text-clay-light" />
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="text-xs text-clay">{r.discount_code}</span>
-                <button onClick={() => deleteReview(r)} className="text-xs font-semibold text-chili-dark">Delete</button>
+            )}
+            <div className="p-2.5 flex-1 flex flex-col">
+              <p className="font-semibold text-ink text-xs truncate">{r.customer_name || "Anonymous"}</p>
+              {r.customer_phone && <p className="text-[11px] text-clay truncate">{r.customer_phone}</p>}
+              <p className="text-[11px] text-clay mt-0.5">{parseDbDate(r.submitted_at).toLocaleString()}</p>
+              <div className="flex items-center gap-0.5 mt-1.5">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Star key={n} size={11} className={n <= (r.rating || 0) ? "fill-turmeric text-turmeric" : "text-clay-light"} />
+                ))}
+              </div>
+              {r.text_feedback && <p className="text-[11px] text-ink/70 mt-1.5 line-clamp-2">{r.text_feedback}</p>}
+              <div className="mt-auto pt-2 flex items-center justify-between gap-2">
+                {r.video_url ? (
+                  <a href={r.video_url} target="_blank" rel="noreferrer" className="text-[11px] text-sprout-dark font-semibold">
+                    View full
+                  </a>
+                ) : <span />}
+                <button onClick={() => deleteReview(r)} className="text-[11px] font-semibold text-chili-dark">Delete</button>
               </div>
             </div>
-            {r.text_feedback && <p className="text-xs text-ink/70 mt-1.5">{r.text_feedback}</p>}
-            {r.video_url && (
-              <a href={r.video_url} target="_blank" rel="noreferrer" className="text-xs text-chili font-medium mt-1.5 inline-flex items-center gap-1">
-                <Video size={12} /> View video/audio
-              </a>
-            )}
-          </Card>
+          </div>
         ))}
       </div>
 
@@ -1370,14 +1410,14 @@ function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
               <button
                 type="button"
                 onClick={() => setForm({ ...form, media_type: "video" })}
-                className={`flex-1 text-xs font-semibold py-2 rounded-card border inline-flex items-center justify-center gap-1.5 ${form.media_type === "video" ? "bg-chili text-white border-chili" : "border-ink/15 text-ink/70"}`}
+                className={`flex-1 text-xs font-semibold py-2 rounded-card border inline-flex items-center justify-center gap-1.5 ${form.media_type === "video" ? "bg-sprout text-white border-sprout" : "border-ink/15 text-ink/70"}`}
               >
                 <Video size={14} /> Video
               </button>
               <button
                 type="button"
                 onClick={() => setForm({ ...form, media_type: "audio" })}
-                className={`flex-1 text-xs font-semibold py-2 rounded-card border inline-flex items-center justify-center gap-1.5 ${form.media_type === "audio" ? "bg-chili text-white border-chili" : "border-ink/15 text-ink/70"}`}
+                className={`flex-1 text-xs font-semibold py-2 rounded-card border inline-flex items-center justify-center gap-1.5 ${form.media_type === "audio" ? "bg-sprout text-white border-sprout" : "border-ink/15 text-ink/70"}`}
               >
                 <Mic size={14} /> Voice note
               </button>
@@ -1434,7 +1474,7 @@ function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
         {error && <p className="text-xs text-chili-dark font-medium mt-3">{error}</p>}
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 border border-ink/15 text-ink font-semibold py-2.5 rounded-card">Cancel</button>
-          <button disabled={saving || uploadingTemplate} onClick={save} className="flex-1 bg-chili text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
+          <button disabled={saving || uploadingTemplate} onClick={save} className="flex-1 bg-sprout text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
             {saving ? "Saving..." : isEditing ? "Save changes" : "Create campaign"}
           </button>
         </div>
@@ -1539,14 +1579,14 @@ function TaxesTab({ restaurant, taxes, setTaxes, askConfirm }) {
           <button
             type="button"
             onClick={() => setType("percent")}
-            className={`flex-1 text-xs font-semibold py-2 rounded-card border ${type === "percent" ? "bg-chili text-white border-chili" : "border-ink/15 text-ink/70"}`}
+            className={`flex-1 text-xs font-semibold py-2 rounded-card border ${type === "percent" ? "bg-sprout text-white border-sprout" : "border-ink/15 text-ink/70"}`}
           >
             Percentage (%)
           </button>
           <button
             type="button"
             onClick={() => setType("fixed")}
-            className={`flex-1 text-xs font-semibold py-2 rounded-card border ${type === "fixed" ? "bg-chili text-white border-chili" : "border-ink/15 text-ink/70"}`}
+            className={`flex-1 text-xs font-semibold py-2 rounded-card border ${type === "fixed" ? "bg-sprout text-white border-sprout" : "border-ink/15 text-ink/70"}`}
           >
             Flat amount (₹)
           </button>
@@ -1560,7 +1600,7 @@ function TaxesTab({ restaurant, taxes, setTaxes, askConfirm }) {
             placeholder={type === "fixed" ? "₹15" : "%"}
             className="w-24 border border-ink/15 rounded-card px-3 py-2 text-sm bg-white"
           />
-          <button onClick={addTax} className="bg-chili text-white px-4 rounded-card text-sm font-semibold">Add</button>
+          <button onClick={addTax} className="bg-sprout text-white px-4 rounded-card text-sm font-semibold">Add</button>
         </div>
         {error && <p className="text-xs text-chili-dark font-medium mt-2">{error}</p>}
       </Card>
@@ -1767,7 +1807,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
             <button
             onClick={saveTagline}
             disabled={savingProfile}
-            className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
+            className="bg-sprout hover:bg-sprout-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
             {savingProfile ? "Saving..." : restaurant.tagline ? "Update" : "Save"}
           </button>
@@ -1788,7 +1828,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
           <button
             onClick={saveInstagram}
             disabled={savingProfile}
-            className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
+            className="bg-sprout hover:bg-sprout-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
             {savingProfile ? "Saving..." : restaurant.instagram_url ? "Update" : "Save"}
           </button>
@@ -1810,7 +1850,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
           <button
             onClick={saveGoogleReview}
             disabled={savingProfile}
-            className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
+            className="bg-sprout hover:bg-sprout-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
             {savingProfile ? "Saving..." : restaurant.google_review_url ? "Update" : "Save"}
           </button>
@@ -1832,7 +1872,7 @@ function CustomerViewTab({ restaurant, tables, onRestaurantUpdate }) {
           <button
             onClick={saveOfferSuccessMessage}
             disabled={savingProfile}
-            className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
+            className="bg-sprout hover:bg-sprout-dark disabled:opacity-60 transition-colors text-white font-semibold px-4 rounded-card text-sm"
           >
             {savingProfile ? "Saving..." : restaurant.offer_success_message ? "Update" : "Save"}
           </button>
@@ -2056,7 +2096,7 @@ function PaymentSettingsTab({ restaurant, paymentSettings, setPaymentSettings })
         </span>
       </label>
 
-      <button disabled={saving} onClick={save} className="bg-chili text-white px-5 py-2.5 rounded-card text-sm font-semibold disabled:opacity-60 inline-flex items-center gap-1.5">
+      <button disabled={saving} onClick={save} className="bg-sprout text-white px-5 py-2.5 rounded-card text-sm font-semibold disabled:opacity-60 inline-flex items-center gap-1.5">
         {saving ? "Saving..." : saved ? (<><Check size={15} /> Saved</>) : (paymentSettings?.upi_id || paymentSettings?.phonepe_qr_image_url ? "Update" : "Save")}
       </button>
     </div>
@@ -2244,14 +2284,14 @@ function BillingTab({ restaurant, subscription, platformContact, orders, payment
             <button
               type="button"
               onClick={() => setProofType("subscription")}
-              className={`flex-1 text-xs font-semibold py-2 rounded-card border ${proofType === "subscription" ? "bg-chili text-white border-chili" : "border-ink/15 text-ink/70"}`}
+              className={`flex-1 text-xs font-semibold py-2 rounded-card border ${proofType === "subscription" ? "bg-sprout text-white border-sprout" : "border-ink/15 text-ink/70"}`}
             >
               Subscription
             </button>
             <button
               type="button"
               onClick={() => setProofType("platform_fee")}
-              className={`flex-1 text-xs font-semibold py-2 rounded-card border ${proofType === "platform_fee" ? "bg-chili text-white border-chili" : "border-ink/15 text-ink/70"}`}
+              className={`flex-1 text-xs font-semibold py-2 rounded-card border ${proofType === "platform_fee" ? "bg-sprout text-white border-sprout" : "border-ink/15 text-ink/70"}`}
             >
               Platform fee
             </button>
@@ -2275,7 +2315,7 @@ function BillingTab({ restaurant, subscription, platformContact, orders, payment
         <button
           onClick={submitProof}
           disabled={uploading}
-          className="bg-chili hover:bg-chili-dark disabled:opacity-60 transition-colors text-white font-semibold px-5 py-2.5 rounded-card text-sm mt-3 w-full"
+          className="bg-sprout hover:bg-sprout-dark disabled:opacity-60 transition-colors text-white font-semibold px-5 py-2.5 rounded-card text-sm mt-3 w-full"
         >
           {uploading ? "Submitting..." : uploadDone ? "Submitted ✓" : "Submit payment proof"}
         </button>
