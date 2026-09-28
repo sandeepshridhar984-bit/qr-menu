@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { cleanTemplates } from "@/lib/templates";
 
 export async function PATCH(request, { params }) {
   const body = await request.json();
   const campaign = db.prepare("SELECT * FROM campaigns WHERE id = ?").get(params.id);
   if (!campaign) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const fields = ["title", "description", "discount_type", "discount_value", "requires_video", "allow_instagram_repost", "terms_text", "active", "media_type", "template_videos"];
+  const fields = ["title", "description", "discount_type", "discount_value", "requires_video", "allow_instagram_repost", "terms_text", "active", "media_type", "template_videos", "templates"];
   const boolFields = ["requires_video", "allow_instagram_repost", "active"];
-  const jsonFields = ["template_videos"];
+  const jsonFields = ["template_videos", "templates"];
   const updates = {};
   for (const f of fields) {
     if (f in body) {
       if (boolFields.includes(f)) updates[f] = body[f] ? 1 : 0;
-      else if (jsonFields.includes(f)) updates[f] = JSON.stringify(Array.isArray(body[f]) ? body[f].slice(0, 6) : []);
+      else if (f === "templates") updates[f] = JSON.stringify(cleanTemplates(body[f]));
+      else if (jsonFields.includes(f)) updates[f] = JSON.stringify(Array.isArray(body[f]) ? body[f] : []);
       else updates[f] = body[f];
     }
   }

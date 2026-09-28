@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { SearchX, PauseCircle, Armchair } from "lucide-react";
 import MenuApp from "./MenuApp";
+import { parseJsonArray } from "@/lib/templates";
 
 export default function TableEntryPage({ params }) {
   const { restaurant: slug, tableId } = params;
@@ -63,7 +64,7 @@ export default function TableEntryPage({ params }) {
   const campaigns = db
     .prepare("SELECT * FROM campaigns WHERE restaurant_id = ? AND active = 1")
     .all(restaurant.id)
-    .map((c) => ({ ...c, template_videos: JSON.parse(c.template_videos || "[]") }));
+    .map((c) => ({ ...c, template_videos: parseJsonArray(c.template_videos), templates: parseJsonArray(c.templates) }));
 
   const taxes = db
     .prepare("SELECT * FROM restaurant_taxes WHERE restaurant_id = ? AND active = 1")

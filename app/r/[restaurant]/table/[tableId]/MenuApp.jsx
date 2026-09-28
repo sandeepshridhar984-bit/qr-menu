@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import Monogram from "@/components/Monogram";
+import TemplatePlayer from "@/components/TemplatePlayer";
 import { parseDbDate } from "@/lib/clientDates";
 import {
   Volume2, ArrowRight, Search, Sparkles, ShoppingCart, Minus, Plus,
@@ -1600,55 +1601,157 @@ function CampaignModal({ campaign, onClose, onDone }) {
   const [agreedInsta, setAgreedInsta] = useState(false);
   const [rating, setRating] = useState(5);
   const [text, setText] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  // Finished-video path (own upload, or one of the restaurant's ready-made files)
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaPreviewName, setMediaPreviewName] = useState("");
   const [selectedTemplateUrl, setSelectedTemplateUrl] = useState(null);
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  // Edit-place path (a scene template the customer fills with their own clips)
+  const [chosenTemplate, setChosenTemplate] = useState(null);
+  const [drafts, setDrafts] = useState([]);
+  const draftsRef = useRef([]);
+  draftsRef.current = drafts;
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
 
   const isAudio = campaign.media_type === "audio";
-  const MAX_MEDIA_BYTES = 200 * 1024 * 1024; // 200MB
+  const MAX_MEDIA_BYTES = 200 * 1024 * 1024; // 200MB, whole-video upload
+  const MAX_CLIP_BYTES = 100 * 1024 * 1024; // 100MB per clip in the edit place
 
-  // Templates can be legacy plain URL strings, or {url, active} objects
-  // once the restaurant starts toggling individual ones on/off -- only the
-  // active ones are ever offered to a customer.
-  const activeTemplates = useMemo(() => {
+  // Scene templates the restaurant has switched on.
+  const sceneTemplates = useMemo(
+    () => (isAudio ? [] : (campaign.templates || []).filter((t) => t.active !== false && t.scenes?.length)),
+    [campaign, isAudio]
+  );
+  // Ready-made video files (older style): plain URLs or {url, active}.
+  const legacyTemplates = useMemo(() => {
     if (isAudio) return [];
     return (campaign.template_videos || [])
       .map((t) => (typeof t === "string" ? { url: t, active: true } : t))
       .filter((t) => t.active !== false);
   }, [campaign, isAudio]);
-  const hasTemplates = activeTemplates.length > 0;
+  const hasPreset = sceneTemplates.length > 0 || legacyTemplates.length > 0;
+
+  // Free the temporary preview URLs of picked clips when the modal closes.
+  useEffect(() => () => {
+    draftsRef.current.forEach((d) => d.previewUrl && URL.revokeObjectURL(d.previewUrl));
+  }, []);
 
   function handleMedia(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_MEDIA_BYTES) {
-      setError(`That file is too large (max 200MB). Please choose a shorter clip or lower quality.`);
+      setError("That file is too large (max 200MB). Please choose a shorter clip or lower quality.");
       e.target.value = "";
       return;
     }
     setError("");
     setSelectedTemplateUrl(null);
+    setChosenTemplate(null);
     setMediaPreviewName(file.name);
     const reader = new FileReader();
     reader.onload = () => setMediaFile(reader.result);
     reader.readAsDataURL(file);
   }
 
-  function pickTemplate(url) {
+  function pickLegacyTemplate(url) {
     setSelectedTemplateUrl(url);
     setMediaFile(null);
     setMediaPreviewName("");
+    setChosenTemplate(null);
     setError("");
+  }
+
+  function chooseTemplate(t) {
+    setChosenTemplate(t);
+    setSelectedTemplateUrl(null);
+    setMediaFile(null);
+    setMediaPreviewName("");
+    setError("");
+    setDrafts(
+      t.scenes.map((s) => ({
+        id: s.id,
+        caption: s.caption || "",
+        duration: s.duration || 4,
+        transition: s.transition || "fade",
+        clientMedia: s.media || "",
+        clientMediaType: s.mediaType || "",
+        file: null,
+        previewUrl: "",
+        mediaType: "",
+      }))
+    );
+  }
+
+  function leaveTemplate() {
+    drafts.forEach((d) => d.previewUrl && URL.revokeObjectURL(d.previewUrl));
+    setChosenTemplate(null);
+    setDrafts([]);
+  }
+
+  function setDraftClip(idx, file) {
+    if (!file) return;
+    if (file.size > MAX_CLIP_BYTES) {
+      setError("That clip is too large (max 100MB). Try a shorter one.");
+      return;
+    }
+    setError("");
+    setDrafts((prev) =>
+      prev.map((d, i) => {
+        if (i !== idx) return d;
+        if (d.previewUrl) URL.revokeObjectURL(d.previewUrl);
+        return { ...d, file, previewUrl: URL.createObjectURL(file), mediaType: file.type.startsWith("video/") ? "video" : "image" };
+      })
+    );
+  }
+
+  function clearDraftClip(idx) {
+    setDrafts((prev) =>
+      prev.map((d, i) => {
+        if (i !== idx) return d;
+        if (d.previewUrl) URL.revokeObjectURL(d.previewUrl);
+        return { ...d, file: null, previewUrl: "", mediaType: "" };
+      })
+    );
+  }
+
+  function updateDraftCaption(idx, caption) {
+    setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, caption } : d)));
+  }
+
+  function readAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadDataUrl(dataUrl, maxBytes) {
+    const upRes = await fetch("/api/uploads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl, maxBytes }),
+    });
+    const upData = await upRes.json();
+    if (!upRes.ok) throw new Error(upData.error);
+    return upData.url;
   }
 
   async function submit() {
     setError("");
-    if (campaign.requires_video && !mediaFile && !selectedTemplateUrl) {
-      setError(isAudio ? "Please attach a short voice note to continue." : hasTemplates ? "Please pick a video below to continue." : "Please attach a short video to continue.");
+    const usingScenes = !!chosenTemplate;
+    const hasOwnMedia = usingScenes ? drafts.some((d) => d.file) : !!(mediaFile || selectedTemplateUrl);
+    if (campaign.requires_video && !hasOwnMedia) {
+      setError(
+        isAudio ? "Please attach a short voice note to continue."
+        : usingScenes ? "Add at least one of your own clips or photos to the template."
+        : hasPreset ? "Pick a template (or upload your own video) to continue."
+        : "Please attach a short video to continue."
+      );
       return;
     }
     if (!customerName.trim()) {
@@ -1658,21 +1761,41 @@ function CampaignModal({ campaign, onClose, onDone }) {
     setSubmitting(true);
     try {
       let mediaUrl = selectedTemplateUrl || "";
-      if (mediaFile) {
-        const upRes = await fetch("/api/uploads", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dataUrl: mediaFile, maxBytes: MAX_MEDIA_BYTES }),
-        });
-        const upData = await upRes.json();
-        if (!upRes.ok) throw new Error(upData.error);
-        mediaUrl = upData.url;
+      let scenes = [];
+
+      if (usingScenes) {
+        const own = drafts.filter((d) => d.file);
+        let n = 0;
+        const uploaded = [];
+        for (const d of drafts) {
+          if (d.file) {
+            n += 1;
+            setProgress(`Uploading clip ${n} of ${own.length}...`);
+            const url = await uploadDataUrl(await readAsDataUrl(d.file), MAX_CLIP_BYTES);
+            uploaded.push({ media: url, mediaType: d.mediaType });
+            if (!mediaUrl) mediaUrl = url;
+          } else {
+            uploaded.push({ media: d.clientMedia, mediaType: d.clientMediaType });
+          }
+        }
+        scenes = drafts.map((d, i) => ({
+          caption: d.caption,
+          duration: d.duration,
+          transition: d.transition,
+          media: uploaded[i].media,
+          mediaType: uploaded[i].mediaType,
+        }));
+      } else if (mediaFile) {
+        setProgress("Uploading...");
+        mediaUrl = await uploadDataUrl(mediaFile, MAX_MEDIA_BYTES);
       }
 
       onDone({
         rating,
         textFeedback: text,
         mediaUrl,
+        templateName: chosenTemplate ? chosenTemplate.name || "" : "",
+        scenes,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         agreedToSubmitContent: agreedTerms,
@@ -1682,12 +1805,21 @@ function CampaignModal({ campaign, onClose, onDone }) {
       setError(e.message || "Something went wrong.");
     } finally {
       setSubmitting(false);
+      setProgress("");
     }
   }
 
+  const previewScenes = drafts.map((d) => ({
+    media: d.previewUrl || d.clientMedia,
+    mediaType: d.previewUrl ? d.mediaType : d.clientMediaType,
+    caption: d.caption,
+    duration: d.duration,
+    transition: d.transition,
+  }));
+
   return (
     <div className="fixed inset-0 z-50 bg-ink/50 flex items-end" onClick={onClose}>
-      <div className="bg-paper w-full rounded-t-3xl max-h-[88vh] overflow-y-auto p-5 animate-rise-in" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-paper w-full rounded-t-3xl max-h-[92vh] overflow-y-auto p-5 animate-rise-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-lg font-bold text-ink">{campaign.title}</h2>
           <button onClick={onClose} className="text-ink/50 hover:text-ink transition-colors p-1"><X size={20} /></button>
@@ -1732,29 +1864,119 @@ function CampaignModal({ campaign, onClose, onDone }) {
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={hasTemplates ? "Add a short caption for your video (optional)..." : "Tell us what you liked or what we can improve..."}
+              placeholder="Tell us what you liked or what we can improve..."
               rows={3}
               className="w-full bg-white border border-ink/10 rounded-card px-3.5 py-2.5 text-sm outline-none focus:border-sprout"
             />
 
-            {hasTemplates ? (
+            {/* ---- Template picker ---- */}
+            {sceneTemplates.length > 0 && !chosenTemplate && (
+              <div className="mt-4">
+                <p className="text-sm font-semibold text-ink mb-1.5">Make your video — pick a template</p>
+                <p className="text-xs text-clay -mt-1 mb-2.5">Open one, add your own clips to its scenes, and send it to the restaurant.</p>
+                <div className="grid gap-2">
+                  {sceneTemplates.map((t, i) => (
+                    <button
+                      key={t.id || i}
+                      onClick={() => chooseTemplate(t)}
+                      className="text-left bg-white border border-ink/10 rounded-2xl p-3.5 flex items-center gap-3 hover:border-sprout/50 transition-colors"
+                    >
+                      <span className="w-10 h-10 rounded-xl bg-sprout/10 flex items-center justify-center flex-shrink-0">
+                        <Video size={18} className="text-sprout-dark" />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-semibold text-ink text-sm truncate">{t.name || `Template ${i + 1}`}</span>
+                        <span className="block text-xs text-clay">
+                          {t.scenes.length} scene{t.scenes.length === 1 ? "" : "s"}{t.description ? ` · ${t.description}` : ""}
+                        </span>
+                      </span>
+                      <ArrowRight size={16} className="text-ink/40 flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ---- The edit place ---- */}
+            {chosenTemplate && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-ink">{chosenTemplate.name || "Your video"}</p>
+                  <button onClick={leaveTemplate} className="text-xs font-semibold text-sprout-dark">Change template</button>
+                </div>
+                {chosenTemplate.description && <p className="text-xs text-clay mb-3">{chosenTemplate.description}</p>}
+
+                <div className="flex justify-center mb-4">
+                  <TemplatePlayer scenes={previewScenes} width={170} />
+                </div>
+
+                <div className="grid gap-2.5">
+                  {drafts.map((d, i) => {
+                    const shown = d.previewUrl || d.clientMedia;
+                    const shownType = d.previewUrl ? d.mediaType : d.clientMediaType;
+                    return (
+                      <div key={d.id || i} className="bg-white border border-ink/10 rounded-2xl p-3.5">
+                        <p className="text-xs font-semibold text-ink mb-2">Scene {i + 1}</p>
+                        <div className="flex items-start gap-3">
+                          <div className="w-16 h-16 rounded-xl bg-paper border border-ink/10 overflow-hidden flex items-center justify-center flex-shrink-0">
+                            {shown && shownType === "video" ? (
+                              <video src={shown} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                            ) : shown ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={shown} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Video size={18} className="text-clay" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap gap-1.5">
+                              <label className="text-xs font-semibold bg-sprout text-white px-3 py-1.5 rounded-full cursor-pointer">
+                                {d.file ? "Change" : "Upload"}
+                                <input type="file" accept="video/*,image/*" className="hidden"
+                                  onChange={(e) => { setDraftClip(i, e.target.files?.[0]); e.target.value = ""; }} />
+                              </label>
+                              <label className="text-xs font-semibold border border-ink/15 text-ink/70 px-3 py-1.5 rounded-full cursor-pointer">
+                                Record
+                                <input type="file" accept="video/*" capture="environment" className="hidden"
+                                  onChange={(e) => { setDraftClip(i, e.target.files?.[0]); e.target.value = ""; }} />
+                              </label>
+                              {d.file && (
+                                <button onClick={() => clearDraftClip(i)} className="text-xs font-semibold text-clay px-2 py-1.5">Remove</button>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-clay mt-1.5">
+                              {d.file ? "Your clip" : d.clientMedia ? "The restaurant's shot — add yours to replace it" : "Add your clip or photo"}
+                            </p>
+                          </div>
+                        </div>
+                        <input
+                          value={d.caption}
+                          onChange={(e) => updateDraftCaption(i, e.target.value)}
+                          maxLength={140}
+                          placeholder="Caption"
+                          className="mt-2.5 w-full bg-paper border border-ink/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-sprout"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ---- Ready-made videos / own upload (finished video) ---- */}
+            {!chosenTemplate && legacyTemplates.length > 0 && (
               <>
-                <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
-                  Pick a video to post {campaign.requires_video ? "" : "(optional)"}
-                </p>
-                <p className="text-xs text-clay -mt-1 mb-2.5">
-                  Choose one of the restaurant's clips below and add your caption above -- no filming needed.
-                </p>
+                <p className="text-sm font-semibold text-ink mt-4 mb-1.5">Or use a ready-made video</p>
                 <div className="grid grid-cols-3 gap-2">
-                  {activeTemplates.map((t, idx) => {
+                  {legacyTemplates.map((t, idx) => {
                     const isSelected = selectedTemplateUrl === t.url;
                     return (
                       <button
                         key={idx}
-                        onClick={() => pickTemplate(t.url)}
+                        onClick={() => pickLegacyTemplate(t.url)}
                         className={`relative rounded-lg overflow-hidden border-2 ${isSelected ? "border-sprout" : "border-transparent"}`}
                       >
-                        <video src={t.url} className="w-full h-20 object-cover bg-ink/5" muted />
+                        <video src={t.url} className="w-full h-20 object-cover bg-ink/5" muted playsInline preload="metadata" />
                         {isSelected && (
                           <span className="absolute inset-0 bg-sprout/25 flex items-center justify-center">
                             <CheckCircle2 size={22} className="text-white drop-shadow" />
@@ -1764,41 +1986,48 @@ function CampaignModal({ campaign, onClose, onDone }) {
                     );
                   })}
                 </div>
-                <label className="flex items-center gap-2 text-xs text-clay mt-2.5">
-                  <span>Prefer to use your own video instead?</span>
+              </>
+            )}
+
+            {!chosenTemplate && (
+              hasPreset ? (
+                <label className="flex items-center gap-2 text-xs text-clay mt-3">
+                  <span>Prefer to send a finished video of your own?</span>
                   <span className="text-sprout-dark font-semibold cursor-pointer underline">
                     Upload one
                     <input type="file" accept="video/*" onChange={handleMedia} className="hidden" />
                   </span>
                 </label>
-                {mediaPreviewName && <p className="text-xs text-ink/70 mt-1">Using your upload: {mediaPreviewName}</p>}
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
-                  {campaign.requires_video
-                    ? (isAudio ? "Record a short voice note" : "Upload a short video")
-                    : (isAudio ? "Add a voice note (optional)" : "Upload a photo or video (optional)")}
-                </p>
-                <label className="flex items-center gap-3 border border-dashed border-ink/25 rounded-card p-3 cursor-pointer">
-                  <span className="w-10 h-10 rounded-lg bg-clay-light flex items-center justify-center flex-shrink-0">
-                    {mediaPreviewName ? (
-                      <CheckCircle2 size={18} className="text-sprout" />
-                    ) : isAudio ? (
-                      <Mic size={18} className="text-clay" />
-                    ) : (
-                      <Video size={18} className="text-clay" />
-                    )}
-                  </span>
-                  <span className="text-xs text-clay truncate">
-                    {mediaPreviewName || (isAudio ? "Tap to record or choose a voice note" : "Tap to record or choose a video")}
-                  </span>
-                  <input type="file" accept={isAudio ? "audio/*" : "video/*"} onChange={handleMedia} className="hidden" />
-                </label>
-              </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
+                    {campaign.requires_video
+                      ? (isAudio ? "Record a short voice note" : "Upload a short video")
+                      : (isAudio ? "Add a voice note (optional)" : "Upload a photo or video (optional)")}
+                  </p>
+                  <label className="flex items-center gap-3 border border-dashed border-ink/25 rounded-card p-3 cursor-pointer">
+                    <span className="w-10 h-10 rounded-lg bg-clay-light flex items-center justify-center flex-shrink-0">
+                      {mediaPreviewName ? (
+                        <CheckCircle2 size={18} className="text-sprout" />
+                      ) : isAudio ? (
+                        <Mic size={18} className="text-clay" />
+                      ) : (
+                        <Video size={18} className="text-clay" />
+                      )}
+                    </span>
+                    <span className="text-xs text-clay truncate">
+                      {mediaPreviewName || (isAudio ? "Tap to record or choose a voice note" : "Tap to record or choose a video")}
+                    </span>
+                    <input type="file" accept={isAudio ? "audio/*" : "video/*"} onChange={handleMedia} className="hidden" />
+                  </label>
+                </>
+              )
+            )}
+            {!chosenTemplate && mediaPreviewName && hasPreset && (
+              <p className="text-xs text-ink/70 mt-1">Using your upload: {mediaPreviewName}</p>
             )}
 
-            <p className="text-sm font-semibold text-ink mt-4 mb-1.5">Who's this from?</p>
+            <p className="text-sm font-semibold text-ink mt-5 mb-1.5">Who's this from?</p>
             <div className="grid gap-2.5">
               <input
                 value={customerName}
@@ -1822,7 +2051,9 @@ function CampaignModal({ campaign, onClose, onDone }) {
               onClick={submit}
               className="mt-5 w-full bg-sprout disabled:opacity-60 text-white font-semibold py-3 rounded-card"
             >
-              {submitting ? "Applying discount..." : `Get ${campaign.discount_type === "percent" ? campaign.discount_value + "%" : money(campaign.discount_value, "INR")} off this order`}
+              {submitting
+                ? (progress || "Applying discount...")
+                : `Get ${campaign.discount_type === "percent" ? campaign.discount_value + "%" : money(campaign.discount_value, "INR")} off this order`}
             </button>
           </>
         )}

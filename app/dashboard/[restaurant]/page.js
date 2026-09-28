@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getUserByToken, userHasAccessToRestaurant, SESSION_COOKIE } from "@/lib/auth";
 import DashboardApp from "./DashboardApp";
+import { parseJsonArray } from "@/lib/templates";
 
 export default function DashboardPage({ params }) {
   const restaurant = db.prepare("SELECT * FROM restaurants WHERE slug = ?").get(params.restaurant);
@@ -73,12 +74,13 @@ export default function DashboardPage({ params }) {
     monthly_fee: subscriptionRow.monthly_fee ?? globalSettingsForBilling?.monthly_fee ?? 7000,
   };
   const campaigns = db.prepare("SELECT * FROM campaigns WHERE restaurant_id = ?").all(restaurant.id)
-    .map((c) => ({ ...c, template_videos: JSON.parse(c.template_videos || "[]") }));
+    .map((c) => ({ ...c, template_videos: parseJsonArray(c.template_videos), templates: parseJsonArray(c.templates) }));
   const taxes = db.prepare("SELECT * FROM restaurant_taxes WHERE restaurant_id = ?").all(restaurant.id);
   const platformContact = db.prepare("SELECT * FROM platform_contact WHERE id = 1").get();
   const reviews = db
-    .prepare("SELECT * FROM reviews WHERE restaurant_id = ? ORDER BY submitted_at DESC LIMIT 50")
-    .all(restaurant.id);
+    .prepare("SELECT * FROM reviews WHERE restaurant_id = ? ORDER BY submitted_at DESC LIMIT 200")
+    .all(restaurant.id)
+    .map((r) => ({ ...r, scenes: parseJsonArray(r.scenes) }));
   const paymentProofs = db
     .prepare("SELECT * FROM payment_proofs WHERE restaurant_id = ? ORDER BY created_at DESC")
     .all(restaurant.id);

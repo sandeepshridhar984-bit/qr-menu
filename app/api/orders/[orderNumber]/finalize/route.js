@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { newId } from "@/lib/ids";
+import { cleanSubmissionScenes, mediaUrl as cleanMediaUrl } from "@/lib/templates";
 
 // Called once the customer's food has actually been served. This is where
 // the bill is decided: an optional offer or campaign discount, then tax
@@ -48,7 +49,7 @@ export async function POST(request, { params }) {
       if (!feedback.agreedToSubmitContent) {
         return NextResponse.json({ error: `You must agree to the terms for "${campaign.title}" to apply that discount.` }, { status: 400 });
       }
-      if (campaign.requires_video && !feedback.mediaUrl) {
+      if (campaign.requires_video && !cleanMediaUrl(feedback.mediaUrl)) {
         return NextResponse.json({
           error: campaign.media_type === "audio" ? `"${campaign.title}" requires a voice note to be submitted.` : `"${campaign.title}" requires a video to be submitted.`,
         }, { status: 400 });
@@ -108,14 +109,16 @@ export async function POST(request, { params }) {
         feedback.agreedToSubmitContent ? 1 : 0, feedback.agreedToInstagramUse ? 1 : 0
       );
       db.prepare(
-        `INSERT INTO reviews (id, restaurant_id, order_id, campaign_id, rating, text_feedback, video_url, discount_code, customer_name, customer_phone)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO reviews (id, restaurant_id, order_id, campaign_id, rating, text_feedback, video_url, discount_code, customer_name, customer_phone, template_name, scenes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         newId(), restaurantId, order.id, campaign.id, feedback.rating || null,
-        feedback.textFeedback || "", feedback.mediaUrl || "",
+        feedback.textFeedback || "", cleanMediaUrl(feedback.mediaUrl),
         `TS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
         (feedback.customerName || "").trim().slice(0, 60),
-        (feedback.customerPhone || "").trim().slice(0, 20)
+        (feedback.customerPhone || "").trim().slice(0, 20),
+        (feedback.templateName || "").toString().slice(0, 80),
+        JSON.stringify(cleanSubmissionScenes(feedback.scenes))
       );
     }
   });

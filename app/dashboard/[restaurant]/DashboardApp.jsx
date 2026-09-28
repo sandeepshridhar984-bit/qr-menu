@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Monogram from "@/components/Monogram";
+import TemplatePlayer, { TEMPLATE_EFFECTS, SCENE_COLORS } from "@/components/TemplatePlayer";
 import { parseDbDate } from "@/lib/clientDates";
 import {
   Eye, Bell, CreditCard, Check, Camera, Video, Star, QrCode,
@@ -1104,6 +1105,21 @@ function OfferFormModal({ restaurant, onClose, onSaved }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  function saveTemplate(tpl) {
+    setForm((f) => {
+      const idx = editingTemplate?.index;
+      const list = idx === null || idx === undefined ? [...f.templates, tpl] : f.templates.map((t, i) => (i === idx ? tpl : t));
+      return { ...f, templates: list };
+    });
+    setEditingTemplate(null);
+  }
+  function removeTemplate(idx) {
+    setForm((f) => ({ ...f, templates: f.templates.filter((_, i) => i !== idx) }));
+  }
+  function toggleTemplate(idx) {
+    setForm((f) => ({ ...f, templates: f.templates.map((t, i) => (i === idx ? { ...t, active: t.active === false } : t)) }));
+  }
+
   async function save() {
     if (!form.title.trim() || !form.discount_value) { setError("Title and discount value are required."); return; }
     setSaving(true);
@@ -1152,6 +1168,8 @@ function OfferFormModal({ restaurant, onClose, onSaved }) {
 function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews, askConfirm }) {
   const [showForm, setShowForm] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [viewingId, setViewingId] = useState(null);
+  const viewing = reviews.find((r) => r.id === viewingId) || null;
 
   async function toggleActive(c) {
     const newActive = c.active ? 0 : 1;
@@ -1223,7 +1241,7 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
                     {c.discount_type === "percent" ? `${c.discount_value}% off` : `${money(c.discount_value, restaurant.currency)} off`} this order
                     {" · "}{c.media_type === "audio" ? "voice note" : "video"} {c.requires_video ? "required" : "optional"}
                     {c.allow_instagram_repost ? " · Instagram reuse allowed (with separate consent)" : ""}
-                    {c.media_type === "video" ? ` · ${(c.template_videos || []).filter((t) => (typeof t === "string" ? true : t.active !== false)).length}/${(c.template_videos || []).length} template videos shown` : ""}
+                    {c.media_type === "video" ? ` · ${(c.templates || []).filter((t) => t.active !== false).length}/${(c.templates || []).length} templates shown` : ""}
                   </p>
                 </div>
               </div>
@@ -1240,45 +1258,56 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
       </div>
 
       <h3 className="font-display font-bold text-ink mb-1">Submissions</h3>
-      <p className="text-xs text-clay mb-2.5">Every video, voice note, and text feedback customers have sent in, with who sent it and when.</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <p className="text-xs text-clay mb-2.5">Everything customers made from your templates or sent in, with their name, phone number, and when they sent it. Tap one to watch it, edit the details, or delete it.</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {reviews.length === 0 && <p className="text-clay text-sm col-span-full">No submissions yet.</p>}
-        {reviews.map((r) => (
-          <div key={r.id} className="bg-white border border-ink/10 rounded-2xl overflow-hidden shadow-sm flex flex-col">
-            {r.video_url ? (
-              r.video_url.match(/\.(mp3|m4a|wav|ogg|webm)(\?|$)/i) ? (
-                <div className="w-full h-24 bg-sprout/10 flex items-center justify-center">
-                  <Mic size={26} className="text-sprout-dark" />
+        {reviews.map((r) => {
+          const scenes = r.scenes || [];
+          const firstShot = scenes.find((sc) => sc.media);
+          const thumbUrl = firstShot?.media || r.video_url || "";
+          const thumbIsVideo = firstShot ? firstShot.mediaType === "video" : !!r.video_url && !/\.(mp3|m4a|wav|ogg|jpe?g|png|webp|gif)(\?|$)/i.test(r.video_url);
+          const thumbIsAudio = !firstShot && !!r.video_url && /\.(mp3|m4a|wav|ogg)(\?|$)/i.test(r.video_url);
+          return (
+            <div
+              key={r.id}
+              onClick={() => setViewingId(r.id)}
+              className="bg-white border border-ink/10 rounded-2xl overflow-hidden shadow-sm flex flex-col cursor-pointer hover:shadow-md transition-shadow"
+            >
+              <div className="relative">
+                {thumbUrl && thumbIsVideo ? (
+                  <video src={thumbUrl} preload="metadata" className="w-full h-28 object-cover bg-ink/5" muted />
+                ) : thumbUrl && !thumbIsAudio ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumbUrl} alt="" className="w-full h-28 object-cover bg-ink/5" />
+                ) : thumbIsAudio ? (
+                  <div className="w-full h-28 bg-sprout/10 flex items-center justify-center"><Mic size={26} className="text-sprout-dark" /></div>
+                ) : (
+                  <div className="w-full h-28 bg-paper flex items-center justify-center"><Star size={22} className="text-clay-light" /></div>
+                )}
+                {scenes.length > 0 && (
+                  <span className="absolute top-1.5 left-1.5 text-[10px] font-bold text-white bg-ink/70 px-1.5 py-0.5 rounded-full">
+                    {scenes.length} scene{scenes.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+              <div className="p-2.5 flex-1 flex flex-col">
+                <p className="font-semibold text-ink text-xs truncate">{r.customer_name || "Anonymous"}</p>
+                {r.customer_phone && <p className="text-[11px] text-clay truncate">{r.customer_phone}</p>}
+                <p className="text-[11px] text-clay mt-0.5">{parseDbDate(r.submitted_at).toLocaleString()}</p>
+                {r.template_name && <p className="text-[11px] text-sprout-dark font-semibold truncate mt-0.5">{r.template_name}</p>}
+                <div className="flex items-center gap-0.5 mt-1.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Star key={n} size={11} className={n <= (r.rating || 0) ? "fill-turmeric text-turmeric" : "text-clay-light"} />
+                  ))}
                 </div>
-              ) : (
-                <video src={r.video_url} className="w-full h-24 object-cover bg-ink/5" muted />
-              )
-            ) : (
-              <div className="w-full h-24 bg-paper flex items-center justify-center">
-                <Star size={22} className="text-clay-light" />
-              </div>
-            )}
-            <div className="p-2.5 flex-1 flex flex-col">
-              <p className="font-semibold text-ink text-xs truncate">{r.customer_name || "Anonymous"}</p>
-              {r.customer_phone && <p className="text-[11px] text-clay truncate">{r.customer_phone}</p>}
-              <p className="text-[11px] text-clay mt-0.5">{parseDbDate(r.submitted_at).toLocaleString()}</p>
-              <div className="flex items-center gap-0.5 mt-1.5">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <Star key={n} size={11} className={n <= (r.rating || 0) ? "fill-turmeric text-turmeric" : "text-clay-light"} />
-                ))}
-              </div>
-              {r.text_feedback && <p className="text-[11px] text-ink/70 mt-1.5 line-clamp-2">{r.text_feedback}</p>}
-              <div className="mt-auto pt-2 flex items-center justify-between gap-2">
-                {r.video_url ? (
-                  <a href={r.video_url} target="_blank" rel="noreferrer" className="text-[11px] text-sprout-dark font-semibold">
-                    View full
-                  </a>
-                ) : <span />}
-                <button onClick={() => deleteReview(r)} className="text-[11px] font-semibold text-chili-dark">Delete</button>
+                <div className="mt-auto pt-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-sprout-dark font-semibold">Open</span>
+                  <button onClick={(e) => { e.stopPropagation(); deleteReview(r); }} className="text-[11px] font-semibold text-chili-dark">Delete</button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {showForm && (
@@ -1307,354 +1336,194 @@ function CampaignsTab({ restaurant, campaigns, setCampaigns, reviews, setReviews
           }}
         />
       )}
+
+      {viewing && (
+        <SubmissionViewer
+          key={viewing.id}
+          review={viewing}
+          restaurant={restaurant}
+          onClose={() => setViewingId(null)}
+          onUpdated={(patch) => setReviews((prev) => prev.map((x) => (x.id === viewing.id ? { ...x, ...patch } : x)))}
+          onDelete={() => { const r = viewing; setViewingId(null); deleteReview(r); }}
+        />
+      )}
     </div>
   );
 }
 
-// ---------- Template video builder ----------
+// ---------- Template editor ----------
 //
-// Lets the restaurant build a short slideshow-style promo video right in
-// the dashboard -- upload a photo per scene, write a caption, pick a
-// transition, set how long it shows -- then actually renders a real .webm
-// video (drawing each frame to a canvas and recording it), uploads it, and
-// adds it to the campaign's template list. No external tools needed.
+// Same idea as the restaurant's "Influencer Video Template" file: a
+// template is a list of scenes, each with its own transition, duration,
+// caption and (optionally) a shot of the restaurant's own. Customers open
+// a template in the in-app edit place and drop their own clips into it.
+// Everything below -- the name, the instructions, every caption, every
+// scene -- is the restaurant's to edit or delete; nothing is pre-written.
 
-const BUILDER_TRANSITIONS = [
-  { id: "fade", label: "Fade" },
-  { id: "slide", label: "Slide" },
-  { id: "zoom", label: "Zoom" },
-];
-const BUILDER_CANVAS_W = 540;
-const BUILDER_CANVAS_H = 960;
-const BUILDER_TRANSITION_MS = 450;
-
-function loadImageEl(dataUrl) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
+function newSceneId() {
+  return `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}
+function blankScene() {
+  return { id: newSceneId(), caption: "", duration: 4, transition: "fade", media: "", mediaType: "" };
 }
 
-function drawCoverImage(ctx, img, w, h) {
-  const scale = Math.max(w / img.width, h / img.height);
-  const sw = w / scale, sh = h / scale;
-  const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-}
-
-function wrapCaptionLines(ctx, text, maxWidth) {
-  const words = (text || "").split(" ").filter(Boolean);
-  const lines = [];
-  let line = "";
-  words.forEach((w) => {
-    const test = line ? line + " " + w : w;
-    if (ctx.measureText(test).width > maxWidth && line) {
-      lines.push(line);
-      line = w;
-    } else {
-      line = test;
-    }
-  });
-  if (line) lines.push(line);
-  return lines;
-}
-
-function TemplateVideoBuilderModal({ onClose, onCreated }) {
-  const [scenes, setScenes] = useState([
-    { id: 1, photo: null, caption: "Fresh off the stove...", duration: 4, transition: "fade" },
-    { id: 2, photo: null, caption: "You have to try this!", duration: 4, transition: "slide" },
-  ]);
-  const [previewIndex, setPreviewIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [rendering, setRendering] = useState(false);
-  const [renderProgress, setRenderProgress] = useState(0);
+function TemplateEditorModal({ template, onClose, onSave }) {
+  const [name, setName] = useState(template?.name ?? "");
+  const [description, setDescription] = useState(template?.description ?? "");
+  const [scenes, setScenes] = useState(
+    template?.scenes?.length ? template.scenes : [blankScene(), blankScene(), blankScene()]
+  );
+  const [uploadingId, setUploadingId] = useState(null);
   const [error, setError] = useState("");
-  const nextId = useRef(3);
-  const previewTimer = useRef(null);
-
-  const supported = typeof window !== "undefined" && !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
+  const MAX_SHOT_BYTES = 100 * 1024 * 1024;
 
   function updateScene(id, patch) {
     setScenes((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
-  function addScene() {
-    if (scenes.length >= 8) return;
-    setScenes((prev) => [...prev, { id: nextId.current++, photo: null, caption: "", duration: 4, transition: "fade" }]);
-  }
   function removeScene(id) {
-    setScenes((prev) => (prev.length > 1 ? prev.filter((s) => s.id !== id) : prev));
+    setScenes((prev) => prev.filter((s) => s.id !== id));
   }
-  function handlePhoto(id, e) {
+
+  async function uploadShot(id, e) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => updateScene(id, { photo: reader.result });
-    reader.readAsDataURL(file);
-  }
-
-  // Simple play-through preview using plain timers (not the export -- just
-  // so the restaurant can see roughly how it flows before rendering it).
-  useEffect(() => {
-    if (!playing) return;
-    const scene = scenes[previewIndex];
-    if (!scene) return;
-    previewTimer.current = setTimeout(() => {
-      setPreviewIndex((i) => (i + 1) % scenes.length);
-    }, scene.duration * 1000);
-    return () => clearTimeout(previewTimer.current);
-  }, [playing, previewIndex, scenes]);
-
-  useEffect(() => {
-    if (previewIndex >= scenes.length) setPreviewIndex(0);
-  }, [scenes.length]);
-
-  async function generate() {
+    if (file.size > MAX_SHOT_BYTES) {
+      setError("That file is too large (max 100MB). Please use a shorter clip.");
+      return;
+    }
     setError("");
-    if (scenes.some((s) => !s.photo)) {
-      setError("Every scene needs a photo before you can generate the video.");
-      return;
-    }
-    if (!supported) {
-      setError("This browser can't build videos in-page. Try Chrome or Edge on a computer, or upload a video file directly instead.");
-      return;
-    }
-    setRendering(true);
-    setRenderProgress(0);
+    setUploadingId(id);
     try {
-      const images = await Promise.all(scenes.map((s) => loadImageEl(s.photo)));
-      const canvas = document.createElement("canvas");
-      canvas.width = BUILDER_CANVAS_W;
-      canvas.height = BUILDER_CANVAS_H;
-      const ctx = canvas.getContext("2d");
-      const stream = canvas.captureStream(30);
-
-      const candidates = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
-      const mimeType = candidates.find((m) => window.MediaRecorder.isTypeSupported?.(m)) || "";
-      const recorder = new window.MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      const chunks = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-      const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
-      recorder.start();
-
-      const totalMs = scenes.reduce((sum, s) => sum + s.duration * 1000, 0);
-      const startedAt = performance.now();
-
-      await new Promise((resolveLoop) => {
-        function frame(now) {
-          const elapsed = now - startedAt;
-          if (elapsed >= totalMs) {
-            resolveLoop();
-            return;
-          }
-          setRenderProgress(Math.min(99, Math.round((elapsed / totalMs) * 100)));
-
-          let acc = 0, idx = 0, localMs = 0;
-          for (let i = 0; i < scenes.length; i++) {
-            const d = scenes[i].duration * 1000;
-            if (elapsed < acc + d) { idx = i; localMs = elapsed - acc; break; }
-            acc += d;
-          }
-          const s = scenes[idx];
-          const img = images[idx];
-
-          ctx.clearRect(0, 0, BUILDER_CANVAS_W, BUILDER_CANVAS_H);
-          let alpha = 1, dx = 0, scale = 1;
-          if (localMs < BUILDER_TRANSITION_MS) {
-            const p = localMs / BUILDER_TRANSITION_MS;
-            if (s.transition === "fade") alpha = p;
-            else if (s.transition === "slide") dx = (1 - p) * BUILDER_CANVAS_W;
-            else if (s.transition === "zoom") scale = 0.7 + 0.3 * p;
-          }
-          ctx.save();
-          ctx.globalAlpha = alpha;
-          ctx.translate(BUILDER_CANVAS_W / 2 + dx, BUILDER_CANVAS_H / 2);
-          ctx.scale(scale, scale);
-          ctx.translate(-BUILDER_CANVAS_W / 2, -BUILDER_CANVAS_H / 2);
-          drawCoverImage(ctx, img, BUILDER_CANVAS_W, BUILDER_CANVAS_H);
-          ctx.restore();
-
-          if (s.caption) {
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = "rgba(0,0,0,0.45)";
-            ctx.fillRect(0, BUILDER_CANVAS_H - 150, BUILDER_CANVAS_W, 150);
-            ctx.fillStyle = "#fff";
-            ctx.font = "bold 34px Inter, Arial, sans-serif";
-            ctx.textBaseline = "alphabetic";
-            const lines = wrapCaptionLines(ctx, s.caption, BUILDER_CANVAS_W - 72);
-            const lineHeight = 42;
-            const startY = BUILDER_CANVAS_H - 60 - (lines.length - 1) * lineHeight;
-            lines.forEach((l, i) => ctx.fillText(l, 36, startY + i * lineHeight));
-          }
-
-          requestAnimationFrame(frame);
-        }
-        requestAnimationFrame(frame);
+      const dataUrl = await fileToDataUrl(file);
+      const res = await fetch("/api/uploads", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl, maxBytes: MAX_SHOT_BYTES }),
       });
-
-      recorder.stop();
-      await stopped;
-      setRenderProgress(100);
-
-      const blob = new Blob(chunks, { type: mimeType || "video/webm" });
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-
-      const upRes = await fetch("/api/uploads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataUrl, maxBytes: 200 * 1024 * 1024 }),
-      });
-      const upData = await upRes.json();
-      if (!upRes.ok) throw new Error(upData.error);
-      onCreated(upData.url);
-    } catch (e) {
-      setError(e.message || "Could not generate that video -- please try again, or upload a video file directly instead.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      updateScene(id, { media: data.url, mediaType: file.type.startsWith("video/") ? "video" : "image" });
+    } catch (err) {
+      setError(err.message || "Could not upload that file.");
     } finally {
-      setRendering(false);
+      setUploadingId(null);
     }
   }
 
-  const activePreview = scenes[previewIndex] || scenes[0];
+  function save() {
+    if (scenes.length === 0) { setError("Add at least one scene."); return; }
+    onSave({
+      id: template?.id || newSceneId(),
+      name: name.trim(),
+      description: description.trim(),
+      active: template ? template.active !== false : true,
+      scenes,
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-[60] bg-ink/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-paper rounded-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-paper rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-display text-lg font-bold text-ink">Build a template video from photos</h3>
-          <button onClick={onClose} className="text-ink/50 hover:text-ink p-1"><X size={20} /></button>
+          <h3 className="font-display text-lg font-bold text-ink">{template ? "Edit template" : "New template"}</h3>
+          <button onClick={onClose} className="text-ink/50 hover:text-ink p-1 text-xl leading-none">×</button>
         </div>
         <p className="text-xs text-clay mb-4">
-          Upload a photo per scene, write a short caption, and pick how it transitions in. When you
-          generate, this becomes a real video file added straight to your template list.
+          Build the scenes customers will fill in. Set each scene's transition, how long it shows and its
+          caption. Add a shot of your own to a scene if you want, or leave it empty for the customer's clip.
         </p>
 
-        {!supported && (
-          <p className="text-xs text-chili-dark bg-chili/5 border border-chili/20 rounded-card px-3 py-2 mb-4">
-            Heads up: this browser doesn't support building videos in-page. You can still design the
-            scenes below to show your team, but generating will only work in a recent Chrome or Edge
-            (desktop works best).
-          </p>
-        )}
-
-        <div className="grid md:grid-cols-[220px_1fr] gap-5">
-          {/* Preview */}
-          <div className="flex flex-col items-center gap-2.5">
-            <div className="relative w-[180px] aspect-[9/16] rounded-2xl overflow-hidden bg-ink border-4 border-ink shadow-lg">
-              {scenes.map((s, i) => (
-                <div
-                  key={s.id}
-                  className="absolute inset-0 transition-all duration-500"
-                  style={{
-                    backgroundImage: s.photo ? `url(${s.photo})` : undefined,
-                    backgroundColor: s.photo ? undefined : "#33302a",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    opacity: i === previewIndex ? 1 : 0,
-                    transform:
-                      i === previewIndex
-                        ? "translateX(0) scale(1)"
-                        : s.transition === "slide"
-                        ? "translateX(30%)"
-                        : s.transition === "zoom"
-                        ? "scale(0.85)"
-                        : "scale(1)",
-                  }}
-                />
-              ))}
-              {activePreview?.caption && (
-                <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-xs font-semibold px-3 py-3 text-center">
-                  {activePreview.caption}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPlaying((p) => !p)}
-                className="w-8 h-8 rounded-full bg-sprout text-white flex items-center justify-center text-sm flex-shrink-0"
-              >
-                {playing ? "❚❚" : "▶"}
-              </button>
-              <div className="flex gap-1 w-[130px]">
-                {scenes.map((s, i) => (
-                  <span key={s.id} className={`h-1.5 flex-1 rounded-full ${i === previewIndex ? "bg-sprout" : "bg-ink/15"}`} />
-                ))}
-              </div>
-            </div>
-            {rendering && (
-              <p className="text-xs text-sprout-dark font-semibold">Rendering... {renderProgress}%</p>
-            )}
+        <div className="grid md:grid-cols-[230px_1fr] gap-6">
+          <div className="md:sticky md:top-0 self-start">
+            <TemplatePlayer scenes={scenes} width={200} />
           </div>
 
-          {/* Scene editor */}
-          <div className="grid gap-3">
-            {scenes.map((s, idx) => (
-              <div key={s.id} className="bg-white border border-ink/10 rounded-card p-3.5">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-ink">Scene {idx + 1}</p>
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs text-clay flex items-center gap-1.5">
-                      sec
-                      <input
-                        type="number" min={1} max={20} value={s.duration}
-                        onChange={(e) => updateScene(s.id, { duration: Math.min(20, Math.max(1, Number(e.target.value) || 1)) })}
-                        className="w-12 border border-ink/15 rounded px-1.5 py-0.5 text-center text-xs"
-                      />
-                    </label>
-                    {scenes.length > 1 && (
-                      <button onClick={() => removeScene(s.id)} className="text-ink/40 hover:text-chili-dark text-sm">×</button>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2.5">
-                  <label className="flex-shrink-0 w-16 h-16 rounded-lg border border-dashed border-ink/25 bg-paper flex items-center justify-center cursor-pointer overflow-hidden">
-                    {s.photo ? <img src={s.photo} className="w-full h-full object-cover" alt="" /> : <Camera size={16} className="text-clay" />}
-                    <input type="file" accept="image/*" onChange={(e) => handlePhoto(s.id, e)} className="hidden" />
-                  </label>
-                  <div className="flex-1 grid gap-1.5">
+          <div>
+            <div className="grid gap-2.5 mb-4">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={80}
+                placeholder="Template name (shown to customers)"
+                className="w-full border border-ink/15 rounded-card px-3 py-2 text-sm bg-white"
+              />
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                maxLength={400}
+                placeholder="Instructions for the customer (optional) -- what to film, how many shots, etc."
+                className="w-full border border-ink/15 rounded-card px-3 py-2 text-sm bg-white"
+              />
+            </div>
+
+            {scenes.map((s, i) => (
+              <div key={s.id} className="bg-white border border-ink/10 rounded-2xl p-4 mb-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="w-3 h-3 rounded-[3px] flex-shrink-0" style={{ background: SCENE_COLORS[i % SCENE_COLORS.length] }} />
+                  <p className="font-semibold text-ink text-sm">Scene {i + 1}</p>
+                  <label className="ml-auto flex items-center gap-1.5 text-xs text-clay">
+                    sec
                     <input
-                      value={s.caption}
-                      onChange={(e) => updateScene(s.id, { caption: e.target.value })}
-                      placeholder="Caption for this scene"
-                      className="w-full border border-ink/15 rounded-card px-2.5 py-1.5 text-xs"
+                      type="number" min={1} max={60} value={s.duration}
+                      onChange={(e) => updateScene(s.id, { duration: Math.min(60, Math.max(1, parseInt(e.target.value) || 1)) })}
+                      className="w-14 border border-ink/15 rounded-md px-1.5 py-0.5 text-center text-xs"
                     />
-                    <div className="flex gap-1.5">
-                      {BUILDER_TRANSITIONS.map((fx) => (
-                        <button
-                          key={fx.id}
-                          onClick={() => updateScene(s.id, { transition: fx.id })}
-                          className={`text-[11px] font-semibold px-2 py-1 rounded-full border ${
-                            s.transition === fx.id ? "bg-sprout text-white border-sprout" : "border-ink/15 text-ink/60"
-                          }`}
-                        >
-                          {fx.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  </label>
+                  <button onClick={() => removeScene(s.id)} className="text-ink/40 hover:text-chili-dark text-lg leading-none px-1" title="Remove scene">×</button>
                 </div>
+
+                <label className="block text-[11px] text-clay mt-3 mb-1">Transition in</label>
+                <select
+                  value={s.transition}
+                  onChange={(e) => updateScene(s.id, { transition: e.target.value })}
+                  className="w-full border border-ink/15 rounded-lg px-2.5 py-1.5 text-sm bg-paper"
+                >
+                  {TEMPLATE_EFFECTS.map((fx) => <option key={fx.id} value={fx.id}>{fx.label}</option>)}
+                </select>
+
+                <label className="block text-[11px] text-clay mt-3 mb-1">Your shot (optional -- photo or clip)</label>
+                <div className="flex items-center gap-2.5">
+                  {s.media && (
+                    s.mediaType === "video"
+                      ? <video src={s.media} className="w-10 h-10 rounded-md object-cover border border-ink/10" muted />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      : <img src={s.media} alt="" className="w-10 h-10 rounded-md object-cover border border-ink/10" />
+                  )}
+                  <label className="text-xs font-semibold border border-ink/15 rounded-lg px-3 py-1.5 cursor-pointer text-ink/70">
+                    {uploadingId === s.id ? "Uploading..." : s.media ? "Replace" : "Upload"}
+                    <input type="file" accept="video/*,image/*" disabled={uploadingId === s.id} onChange={(e) => uploadShot(s.id, e)} className="hidden" />
+                  </label>
+                  {s.media && (
+                    <button onClick={() => updateScene(s.id, { media: "", mediaType: "" })} className="text-xs font-semibold text-chili-dark">Remove</button>
+                  )}
+                </div>
+
+                <label className="block text-[11px] text-clay mt-3 mb-1">Caption</label>
+                <input
+                  value={s.caption}
+                  onChange={(e) => updateScene(s.id, { caption: e.target.value })}
+                  maxLength={140}
+                  placeholder="Type your own caption"
+                  className="w-full border border-ink/15 rounded-lg px-2.5 py-1.5 text-sm bg-white"
+                />
               </div>
             ))}
-            {scenes.length < 8 && (
-              <button onClick={addScene} className="border border-dashed border-ink/25 rounded-card py-2.5 text-sm font-semibold text-ink/60 hover:border-sprout hover:text-sprout-dark">
-                + Add scene
-              </button>
-            )}
+
+            <button
+              onClick={() => setScenes((prev) => [...prev, blankScene()])}
+              className="w-full border border-dashed border-ink/25 rounded-2xl py-3 text-sm font-semibold text-ink/70 hover:border-sprout hover:text-sprout-dark"
+            >
+              + Add scene
+            </button>
           </div>
         </div>
 
         {error && <p className="text-xs text-chili-dark font-medium mt-4">{error}</p>}
-
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 border border-ink/15 text-ink font-semibold py-2.5 rounded-card">Cancel</button>
-          <button disabled={rendering} onClick={generate} className="flex-1 bg-sprout text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
-            {rendering ? "Generating..." : "Generate & add to templates"}
+          <button disabled={uploadingId !== null} onClick={save} className="flex-1 bg-sprout text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
+            Save template
           </button>
         </div>
       </div>
@@ -1662,12 +1531,137 @@ function TemplateVideoBuilderModal({ onClose, onCreated }) {
   );
 }
 
+// ---------- Submission viewer ----------
+//
+// Replays exactly what a customer made from a template, with who they are
+// and when they sent it. Every detail here can be corrected or removed by
+// the restaurant.
+
+function SubmissionViewer({ review, restaurant, onClose, onUpdated, onDelete }) {
+  const scenes = review.scenes || [];
+  const [name, setName] = useState(review.customer_name || "");
+  const [phone, setPhone] = useState(review.customer_phone || "");
+  const [feedback, setFeedback] = useState(review.text_feedback || "");
+  const [captions, setCaptions] = useState(scenes.map((s) => s.caption || ""));
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  const isAudio = !scenes.length && review.video_url && /\.(mp3|m4a|wav|ogg)(\?|$)/i.test(review.video_url);
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/${restaurant.slug}/reviews/${review.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: name, customer_phone: phone, text_feedback: feedback,
+          scenes: scenes.length ? captions.map((c) => ({ caption: c })) : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save.");
+      onUpdated({
+        customer_name: name.trim(), customer_phone: phone.trim(), text_feedback: feedback,
+        scenes: scenes.map((s, i) => ({ ...s, caption: captions[i] })),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1800);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-ink/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-paper rounded-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-display text-lg font-bold text-ink">{review.customer_name || "Anonymous"}</h3>
+            <p className="text-xs text-clay">
+              {review.template_name ? `${review.template_name} · ` : ""}{parseDbDate(review.submitted_at).toLocaleString()}
+              {review.discount_code ? ` · ${review.discount_code}` : ""}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-ink/50 hover:text-ink p-1 text-xl leading-none">×</button>
+        </div>
+
+        <div className="grid md:grid-cols-[230px_1fr] gap-6">
+          <div className="self-start">
+            {scenes.length > 0 ? (
+              <TemplatePlayer scenes={scenes.map((s, i) => ({ ...s, caption: captions[i] }))} width={200} autoPlay />
+            ) : review.video_url ? (
+              isAudio
+                ? <audio src={review.video_url} controls className="w-full" />
+                : <video src={review.video_url} controls className="w-full rounded-xl bg-ink" />
+            ) : (
+              <p className="text-sm text-clay">No video or audio was attached.</p>
+            )}
+          </div>
+
+          <div className="grid gap-3 content-start">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] text-clay mb-1">Name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} className="w-full border border-ink/15 rounded-lg px-2.5 py-1.5 text-sm bg-white" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-clay mb-1">Phone number</label>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} className="w-full border border-ink/15 rounded-lg px-2.5 py-1.5 text-sm bg-white" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] text-clay mb-1">Feedback</label>
+              <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={2} className="w-full border border-ink/15 rounded-lg px-2.5 py-1.5 text-sm bg-white" />
+            </div>
+
+            {scenes.map((s, i) => (
+              <div key={i} className="bg-white border border-ink/10 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold text-ink">Scene {i + 1}</p>
+                  {s.media && (
+                    <a href={s.media} download className="text-[11px] font-semibold text-sprout-dark">
+                      Download {s.mediaType === "video" ? "clip" : "photo"}
+                    </a>
+                  )}
+                </div>
+                <input
+                  value={captions[i] ?? ""}
+                  onChange={(e) => setCaptions((prev) => prev.map((c, j) => (j === i ? e.target.value : c)))}
+                  maxLength={140}
+                  placeholder="Caption"
+                  className="w-full border border-ink/15 rounded-lg px-2.5 py-1.5 text-sm bg-white"
+                />
+              </div>
+            ))}
+
+            {review.video_url && !scenes.length && (
+              <a href={review.video_url} download className="text-xs font-semibold text-sprout-dark">Download file</a>
+            )}
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-chili-dark font-medium mt-4">{error}</p>}
+        <div className="flex gap-3 mt-5">
+          <button onClick={onDelete} className="border border-chili/30 text-chili-dark bg-chili/5 font-semibold px-4 py-2.5 rounded-card text-sm">Delete</button>
+          <button onClick={onClose} className="flex-1 border border-ink/15 text-ink font-semibold py-2.5 rounded-card">Close</button>
+          <button disabled={saving} onClick={save} className="flex-1 bg-sprout text-white font-semibold py-2.5 rounded-card disabled:opacity-60">
+            {saving ? "Saving..." : saved ? "Saved" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
   const isEditing = !!campaign;
   const [form, setForm] = useState({
-    title: campaign?.title ?? "Share a video, get a discount",
-    description: campaign?.description ?? "Post a quick video about your food experience and get a discount on your next visit.",
+    title: campaign?.title ?? "",
+    description: campaign?.description ?? "",
     discount_type: campaign?.discount_type ?? "percent",
     discount_value: campaign?.discount_value ?? "10",
     requires_video: campaign ? !!campaign.requires_video : true,
@@ -1675,9 +1669,10 @@ function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
     media_type: campaign?.media_type ?? "video",
     terms_text: campaign?.terms_text ?? "We're asking for honest feedback, not a positive review. Your video/photo may be used internally to improve our food and service.",
     template_videos: (campaign?.template_videos ?? []).map((t) => (typeof t === "string" ? { url: t, active: true } : t)),
+    templates: campaign?.templates ?? [],
   });
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
-  const [builderOpen, setBuilderOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null); // { index, template } -- index null when adding
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const MAX_TEMPLATE_BYTES = 200 * 1024 * 1024; // 200MB
@@ -1686,8 +1681,8 @@ function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (form.template_videos.length >= 6) {
-      setError("You can upload up to 6 template videos.");
+    if (form.template_videos.length >= 20) {
+      setError("That's a lot of templates already -- try trimming the list before adding more.");
       return;
     }
     if (file.size > MAX_TEMPLATE_BYTES) {
@@ -1745,9 +1740,9 @@ function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
       <div className="bg-paper rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
         <h3 className="font-display text-lg font-bold text-ink mb-4">{isEditing ? "Edit campaign" : "Create video feedback campaign"}</h3>
         <div className="grid gap-3">
-          <Field label="Title"><Input value={form.title} onChange={(v) => setForm({ ...form, title: v })} /></Field>
+          <Field label="Title"><Input value={form.title} onChange={(v) => setForm({ ...form, title: v })} placeholder="Your campaign title" /></Field>
           <Field label="Description shown to customers">
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="w-full border border-ink/15 rounded-card px-3 py-2 text-sm bg-white" />
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="What customers see before they take part" className="w-full border border-ink/15 rounded-card px-3 py-2 text-sm bg-white" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Discount type">
@@ -1779,56 +1774,64 @@ function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
 
           {form.media_type === "video" && (
             <div className="border border-ink/10 rounded-card p-3.5 bg-white">
-              <p className="text-xs font-semibold text-ink mb-1">Template videos ({form.template_videos.length}/6)</p>
+              <p className="text-xs font-semibold text-ink mb-1">Templates ({form.templates.length})</p>
               <p className="text-xs text-clay mb-2.5">
-                Upload up to 6 short promo clips of your own. Customers pick one of these and add a
-                short caption instead of having to film and edit their own video during the meal --
-                much more realistic in the few minutes before they ask for the bill. Untick a video to
-                hide it from customers without deleting it. Leave all empty to keep the old "customer
-                uploads their own video" flow.
+                A template is a set of scenes -- each with its own transition, timing and caption. Customers
+                open one in the edit place, drop their own clips into the scenes, and send it to you. Edit
+                or delete any template whenever you like; untick "Shown" to hide one without deleting it.
               </p>
-              <div className="grid grid-cols-3 gap-2 mb-2.5">
-                {form.template_videos.map((t, idx) => (
-                  <div key={idx} className={`relative border rounded-lg overflow-hidden bg-ink/5 ${t.active ? "border-ink/10" : "border-ink/10 opacity-40"}`}>
-                    <video src={t.url} className="w-full h-16 object-cover" muted />
-                    <button
-                      type="button"
-                      onClick={() => removeTemplateVideo(idx)}
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-ink/70 text-white text-xs flex items-center justify-center"
-                    >
-                      ×
-                    </button>
-                    <label className="absolute bottom-1 left-1 right-1 bg-white/90 rounded px-1.5 py-0.5 flex items-center gap-1 text-[10px] font-semibold text-ink cursor-pointer">
-                      <input type="checkbox" checked={t.active} onChange={() => toggleTemplateVideo(idx)} className="w-3 h-3" /> Shown
+              <div className="grid gap-2 mb-2.5">
+                {form.templates.map((t, idx) => (
+                  <div key={t.id || idx} className={`flex items-center gap-2.5 border border-ink/10 rounded-lg px-3 py-2 ${t.active === false ? "opacity-50" : ""}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-ink truncate">{t.name || `Template ${idx + 1}`}</p>
+                      <p className="text-[11px] text-clay">{t.scenes?.length || 0} scene{(t.scenes?.length || 0) === 1 ? "" : "s"}</p>
+                    </div>
+                    <label className="flex items-center gap-1 text-[11px] font-semibold text-ink/70 cursor-pointer">
+                      <input type="checkbox" checked={t.active !== false} onChange={() => toggleTemplate(idx)} className="w-3.5 h-3.5" /> Shown
                     </label>
+                    <button type="button" onClick={() => setEditingTemplate({ index: idx, template: t })} className="text-xs font-semibold text-ink/60">Edit</button>
+                    <button type="button" onClick={() => removeTemplate(idx)} className="text-xs font-semibold text-chili-dark">Delete</button>
                   </div>
                 ))}
               </div>
-              {form.template_videos.length < 6 && (
-                <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingTemplate({ index: null, template: null })}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-sprout-dark border border-dashed border-sprout/40 bg-sprout/5 rounded-card px-3 py-2"
+              >
+                <Plus size={13} /> Add a template
+              </button>
+
+                <div className="mt-4 pt-3.5 border-t border-ink/10">
+                  <p className="text-xs font-semibold text-ink mb-1">Ready-made video files ({form.template_videos.length})</p>
+                  <p className="text-xs text-clay mb-2.5">
+                    Optional: finished videos customers can pick as-is instead of editing a template.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 mb-2.5">
+                    {form.template_videos.map((t, idx) => (
+                      <div key={idx} className={`relative border rounded-lg overflow-hidden bg-ink/5 ${t.active ? "border-ink/10" : "border-ink/10 opacity-40"}`}>
+                        <video src={t.url} className="w-full h-16 object-cover" muted />
+                        <button type="button" onClick={() => removeTemplateVideo(idx)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-ink/70 text-white text-xs flex items-center justify-center">×</button>
+                        <label className="absolute bottom-1 left-1 right-1 bg-white/90 rounded px-1.5 py-0.5 flex items-center gap-1 text-[10px] font-semibold text-ink cursor-pointer">
+                          <input type="checkbox" checked={t.active} onChange={() => toggleTemplateVideo(idx)} className="w-3 h-3" /> Shown
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                   <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink/70 border border-dashed border-ink/25 rounded-card px-3 py-2 cursor-pointer">
                     <Upload size={13} /> {uploadingTemplate ? "Uploading..." : "Upload a video file"}
                     <input type="file" accept="video/*" onChange={addTemplateVideo} disabled={uploadingTemplate} className="hidden" />
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setBuilderOpen(true)}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-sprout-dark border border-dashed border-sprout/40 bg-sprout/5 rounded-card px-3 py-2"
-                  >
-                    <Camera size={13} /> Build one from photos
-                  </button>
                 </div>
-              )}
             </div>
           )}
 
-          {builderOpen && (
-            <TemplateVideoBuilderModal
-              onClose={() => setBuilderOpen(false)}
-              onCreated={(url) => {
-                setForm((f) => ({ ...f, template_videos: [...f.template_videos, { url, active: true }] }));
-                setBuilderOpen(false);
-              }}
+          {editingTemplate && (
+            <TemplateEditorModal
+              template={editingTemplate.template}
+              onClose={() => setEditingTemplate(null)}
+              onSave={saveTemplate}
             />
           )}
 
