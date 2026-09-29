@@ -1105,21 +1105,6 @@ function OfferFormModal({ restaurant, onClose, onSaved }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  function saveTemplate(tpl) {
-    setForm((f) => {
-      const idx = editingTemplate?.index;
-      const list = idx === null || idx === undefined ? [...f.templates, tpl] : f.templates.map((t, i) => (i === idx ? tpl : t));
-      return { ...f, templates: list };
-    });
-    setEditingTemplate(null);
-  }
-  function removeTemplate(idx) {
-    setForm((f) => ({ ...f, templates: f.templates.filter((_, i) => i !== idx) }));
-  }
-  function toggleTemplate(idx) {
-    setForm((f) => ({ ...f, templates: f.templates.map((t, i) => (i === idx ? { ...t, active: t.active === false } : t)) }));
-  }
-
   async function save() {
     if (!form.title.trim() || !form.discount_value) { setError("Title and discount value are required."); return; }
     setSaving(true);
@@ -1715,6 +1700,21 @@ function CampaignFormModal({ restaurant, campaign, onClose, onSaved }) {
       ...f,
       template_videos: f.template_videos.map((t, i) => (i === idx ? { ...t, active: !t.active } : t)),
     }));
+  }
+
+  function saveTemplate(tpl) {
+    setForm((f) => {
+      const idx = editingTemplate?.index;
+      const list = idx === null || idx === undefined ? [...f.templates, tpl] : f.templates.map((t, i) => (i === idx ? tpl : t));
+      return { ...f, templates: list };
+    });
+    setEditingTemplate(null);
+  }
+  function removeTemplate(idx) {
+    setForm((f) => ({ ...f, templates: f.templates.filter((_, i) => i !== idx) }));
+  }
+  function toggleTemplate(idx) {
+    setForm((f) => ({ ...f, templates: f.templates.map((t, i) => (i === idx ? { ...t, active: t.active === false } : t)) }));
   }
 
   async function save() {

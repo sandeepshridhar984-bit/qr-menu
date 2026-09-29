@@ -1595,6 +1595,11 @@ function ReceiptScreen({ order, restaurant, table, payment, onNewOrder }) {
 // ---------- Campaign (video or audio feedback, completed after the meal;
 // discount applies to THIS order's final bill) ----------
 
+// Used when a video campaign has no restaurant-made template yet -- the
+// customer still goes through the same edit place (one open scene) instead
+// of a bare file picker, so the experience is consistent either way.
+const BLANK_VIDEO_TEMPLATE = { id: "blank", name: "Your video", description: "", scenes: [{ id: "blank-1", caption: "", duration: 6, transition: "fade", media: "", mediaType: "" }] };
+
 function CampaignModal({ campaign, onClose, onDone }) {
   const [step, setStep] = useState("terms"); // terms -> feedback
   const [agreedTerms, setAgreedTerms] = useState(false);
@@ -1794,7 +1799,7 @@ function CampaignModal({ campaign, onClose, onDone }) {
         rating,
         textFeedback: text,
         mediaUrl,
-        templateName: chosenTemplate ? chosenTemplate.name || "" : "",
+        templateName: chosenTemplate && chosenTemplate.id !== "blank" ? chosenTemplate.name || "" : "",
         scenes,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
@@ -1902,7 +1907,9 @@ function CampaignModal({ campaign, onClose, onDone }) {
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-ink">{chosenTemplate.name || "Your video"}</p>
-                  <button onClick={leaveTemplate} className="text-xs font-semibold text-sprout-dark">Change template</button>
+                  <button onClick={leaveTemplate} className="text-xs font-semibold text-sprout-dark">
+                    {chosenTemplate.id === "blank" ? "Start over" : "Change template"}
+                  </button>
                 </div>
                 {chosenTemplate.description && <p className="text-xs text-clay mb-3">{chosenTemplate.description}</p>}
 
@@ -1998,29 +2005,39 @@ function CampaignModal({ campaign, onClose, onDone }) {
                     <input type="file" accept="video/*" onChange={handleMedia} className="hidden" />
                   </span>
                 </label>
-              ) : (
+              ) : isAudio ? (
                 <>
                   <p className="text-sm font-semibold text-ink mt-4 mb-1.5">
-                    {campaign.requires_video
-                      ? (isAudio ? "Record a short voice note" : "Upload a short video")
-                      : (isAudio ? "Add a voice note (optional)" : "Upload a photo or video (optional)")}
+                    {campaign.requires_video ? "Record a short voice note" : "Add a voice note (optional)"}
                   </p>
                   <label className="flex items-center gap-3 border border-dashed border-ink/25 rounded-card p-3 cursor-pointer">
                     <span className="w-10 h-10 rounded-lg bg-clay-light flex items-center justify-center flex-shrink-0">
-                      {mediaPreviewName ? (
-                        <CheckCircle2 size={18} className="text-sprout" />
-                      ) : isAudio ? (
-                        <Mic size={18} className="text-clay" />
-                      ) : (
-                        <Video size={18} className="text-clay" />
-                      )}
+                      {mediaPreviewName ? <CheckCircle2 size={18} className="text-sprout" /> : <Mic size={18} className="text-clay" />}
                     </span>
                     <span className="text-xs text-clay truncate">
-                      {mediaPreviewName || (isAudio ? "Tap to record or choose a voice note" : "Tap to record or choose a video")}
+                      {mediaPreviewName || "Tap to record or choose a voice note"}
                     </span>
-                    <input type="file" accept={isAudio ? "audio/*" : "video/*"} onChange={handleMedia} className="hidden" />
+                    <input type="file" accept="audio/*" onChange={handleMedia} className="hidden" />
                   </label>
                 </>
+              ) : (
+                // No template from the restaurant yet -- rather than a bare
+                // file picker, send them into the same edit place (one
+                // blank scene: upload or record a clip, write a caption).
+                <button
+                  type="button"
+                  onClick={() => chooseTemplate(BLANK_VIDEO_TEMPLATE)}
+                  className="w-full mt-4 flex items-center gap-3 border border-dashed border-sprout/40 bg-sprout/5 rounded-card p-3.5 text-left"
+                >
+                  <span className="w-10 h-10 rounded-lg bg-sprout/10 flex items-center justify-center flex-shrink-0">
+                    <Video size={18} className="text-sprout-dark" />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-semibold text-ink">Make your video</span>
+                    <span className="block text-xs text-clay">Record or pick a clip, add a caption, then send it{campaign.requires_video ? "" : " (optional)"}.</span>
+                  </span>
+                  <ArrowRight size={16} className="text-ink/40 flex-shrink-0" />
+                </button>
               )
             )}
             {!chosenTemplate && mediaPreviewName && hasPreset && (
