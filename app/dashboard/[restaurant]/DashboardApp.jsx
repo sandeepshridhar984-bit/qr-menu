@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Monogram from "@/components/Monogram";
 import TemplatePlayer, { TEMPLATE_EFFECTS, SCENE_COLORS } from "@/components/TemplatePlayer";
+import { exportScenesToVideo, exportSupported } from "@/lib/exportVideo";
 import { parseDbDate } from "@/lib/clientDates";
 import {
   Eye, Bell, CreditCard, Check, Camera, Video, Star, QrCode,
@@ -48,7 +49,24 @@ export default function DashboardApp({
 }) {
   const router = useRouter();
   const [restaurant, setRestaurant] = useState(initialRestaurant);
-  const [tab, setTab] = useState("Orders");
+  // Keep the selected sidebar section in the URL (?tab=...) so refreshing
+  // the page (or sharing/bookmarking the link) stays on the same section
+  // instead of always bouncing back to Orders.
+  const [tab, setTabState] = useState(() => {
+    if (typeof window !== "undefined") {
+      const fromUrl = new URLSearchParams(window.location.search).get("tab");
+      if (fromUrl && TABS.some((t) => t.name === fromUrl)) return fromUrl;
+    }
+    return "Orders";
+  });
+  function setTab(name) {
+    setTabState(name);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", name);
+      window.history.replaceState(null, "", url.toString());
+    }
+  }
   const [orders, setOrders] = useState(initialOrders);
   const [items, setItems] = useState(initialItems);
   const [categories, setCategories] = useState(initialCategories);
@@ -1531,8 +1549,34 @@ function SubmissionViewer({ review, restaurant, onClose, onUpdated, onDelete }) 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   const isAudio = !scenes.length && review.video_url && /\.(mp3|m4a|wav|ogg)(\?|$)/i.test(review.video_url);
+
+  async function downloadFullVideo() {
+    setError("");
+    setExporting(true);
+    setExportProgress(0);
+    try {
+      const blob = await exportScenesToVideo(
+        scenes.map((s, i) => ({ ...s, caption: captions[i] })),
+        setExportProgress
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(review.customer_name || "submission").replace(/[^\w-]+/g, "_")}-full-video.webm`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      setError(e.message || "Could not put the scenes together into one video.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -1577,7 +1621,19 @@ function SubmissionViewer({ review, restaurant, onClose, onUpdated, onDelete }) 
         <div className="grid md:grid-cols-[230px_1fr] gap-6">
           <div className="self-start">
             {scenes.length > 0 ? (
-              <TemplatePlayer scenes={scenes.map((s, i) => ({ ...s, caption: captions[i] }))} width={200} autoPlay />
+              <>
+                <TemplatePlayer scenes={scenes.map((s, i) => ({ ...s, caption: captions[i] }))} width={200} autoPlay />
+                <button
+                  onClick={downloadFullVideo}
+                  disabled={exporting}
+                  className="mt-3 w-full text-xs font-semibold bg-sprout/10 text-sprout-dark disabled:opacity-60 rounded-full px-3 py-2"
+                >
+                  {exporting ? `Putting it together... ${exportProgress}%` : "Download full video (all scenes)"}
+                </button>
+                {!exportSupported() && (
+                  <p className="text-[11px] text-clay mt-1.5">Works best in Chrome or Edge on a computer.</p>
+                )}
+              </>
             ) : review.video_url ? (
               isAudio
                 ? <audio src={review.video_url} controls className="w-full" />
