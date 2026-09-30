@@ -6,6 +6,14 @@ import Monogram from "@/components/Monogram";
 import TemplatePlayer, { TEMPLATE_EFFECTS, SCENE_COLORS } from "@/components/TemplatePlayer";
 import { exportScenesToVideo, exportSupported } from "@/lib/exportVideo";
 import { parseDbDate } from "@/lib/clientDates";
+import { Store, ClipboardCheck, LayoutGrid, BarChart3, UserCircle, LifeBuoy } from "lucide-react";
+import OfflineMenu from "@/components/pos/OfflineMenu";
+import MyOrders from "@/components/pos/MyOrders";
+import MenuManager from "@/components/pos/MenuManager";
+import PrinterAndHistory from "@/components/pos/PrinterAndHistory";
+import UserAccount from "@/components/pos/UserAccount";
+import CustomerSupport from "@/components/pos/CustomerSupport";
+import Analytics from "@/components/pos/Analytics";
 import {
   Eye, Bell, CreditCard, Check, Camera, Video, Star, QrCode,
   Smartphone, RefreshCw, ExternalLink, Printer, Upload, ChefHat,
@@ -14,7 +22,16 @@ import {
 } from "lucide-react";
 
 const TABS = [
-  { name: "Orders", icon: ClipboardList },
+  // --- Billing (offline ordering) ---
+  { name: "Offline Menu", icon: Store, section: "Billing" },
+  { name: "My Orders", icon: ClipboardCheck },
+  { name: "Menu Manager", icon: LayoutGrid },
+  { name: "Analytics", icon: BarChart3 },
+  { name: "Printer Connection", icon: Printer },
+  { name: "User Account", icon: UserCircle },
+  { name: "Customer Support", icon: LifeBuoy },
+  // --- QR ordering & platform (existing) ---
+  { name: "Orders", icon: ClipboardList, section: "QR ordering & platform" },
   { name: "Menu", icon: UtensilsCrossed },
   { name: "Offers", icon: Tag },
   { name: "Campaigns", icon: Video },
@@ -44,7 +61,7 @@ function fileToDataUrl(file) {
 export default function DashboardApp({
   restaurant: initialRestaurant, categories: initialCategories, items: initialItems, tables: initialTables,
   offers: initialOffers, orders: initialOrders, paymentSettings: initialPaymentSettings, subscription, totals,
-  campaigns: initialCampaigns, reviews: initialReviews, userName, taxes: initialTaxes, platformContact,
+  campaigns: initialCampaigns, reviews: initialReviews, userName, userEmail, taxes: initialTaxes, platformContact,
   paymentProofs: initialPaymentProofs,
 }) {
   const router = useRouter();
@@ -57,7 +74,7 @@ export default function DashboardApp({
       const fromUrl = new URLSearchParams(window.location.search).get("tab");
       if (fromUrl && TABS.some((t) => t.name === fromUrl)) return fromUrl;
     }
-    return "Orders";
+    return "Offline Menu";
   });
   function setTab(name) {
     setTabState(name);
@@ -193,19 +210,23 @@ export default function DashboardApp({
       <div className="max-w-[1600px] mx-auto px-6 py-6 flex gap-6 items-start">
         <aside className="hidden md:block w-56 flex-shrink-0 sticky top-6">
           <nav className="bg-white border border-ink/10 rounded-2xl p-2">
-            {TABS.map(({ name, icon: Icon }) => {
+            {TABS.map(({ name, icon: Icon, section }) => {
               const isActive = tab === name;
               return (
-                <button
-                  key={name}
-                  onClick={() => setTab(name)}
-                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm transition-colors text-left ${
-                    isActive ? "bg-sprout/10 text-sprout-dark font-semibold" : "text-ink/60 hover:bg-paper hover:text-ink font-medium"
-                  }`}
-                >
-                  <Icon size={16} className="flex-shrink-0" />
-                  {name}
-                </button>
+                <div key={name}>
+                  {section && (
+                    <p className="px-3.5 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-clay">{section}</p>
+                  )}
+                  <button
+                    onClick={() => setTab(name)}
+                    className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm transition-colors text-left ${
+                      isActive ? "bg-sprout/10 text-sprout-dark font-semibold" : "text-ink/60 hover:bg-paper hover:text-ink font-medium"
+                    }`}
+                  >
+                    <Icon size={16} className="flex-shrink-0" />
+                    {name}
+                  </button>
+                </div>
               );
             })}
           </nav>
@@ -229,6 +250,21 @@ export default function DashboardApp({
             })}
           </div>
 
+          {tab === "Offline Menu" && (
+            <OfflineMenu restaurant={restaurant} categories={categories} items={items} setOrders={setOrders} goToOrders={() => setTab("My Orders")} />
+          )}
+          {tab === "My Orders" && (
+            <MyOrders restaurant={restaurant} orders={orders} setOrders={setOrders} taxes={taxes} askConfirm={askConfirm} />
+          )}
+          {tab === "Menu Manager" && (
+            <MenuManager restaurant={restaurant} categories={categories} setCategories={setCategories} items={items} setItems={setItems} askConfirm={askConfirm} ItemFormModal={ItemFormModal} />
+          )}
+          {tab === "Analytics" && <Analytics restaurant={restaurant} />}
+          {tab === "Printer Connection" && <PrinterAndHistory restaurant={restaurant} />}
+          {tab === "User Account" && (
+            <UserAccount restaurant={restaurant} userEmail={userEmail} userName={userName} onRestaurantUpdate={setRestaurant} goToTaxes={() => setTab("Taxes")} />
+          )}
+          {tab === "Customer Support" && <CustomerSupport restaurant={restaurant} platformContact={platformContact} />}
           {tab === "Orders" && <OrdersTab restaurant={restaurant} orders={orders} setOrders={setOrders} askConfirm={askConfirm} paymentSettings={paymentSettings} />}
           {tab === "Menu" && (
             <MenuTab restaurant={restaurant} categories={categories} setCategories={setCategories} items={items} setItems={setItems} askConfirm={askConfirm} />

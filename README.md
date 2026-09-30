@@ -219,3 +219,29 @@ yet" message instead of a silent failure.
   one server instance.
 - Set `N8N_WEBHOOK_URL`, `AI_API_KEY`, SMTP credentials, and a real payment
   gateway for your own subscription billing per `.env.example`.
+
+---
+
+## Billing mode (offline ordering) — added sections
+
+The dashboard sidebar now has a **Billing** group above the original QR sections
+(nothing from the QR flow was removed):
+
+| Section | Purpose |
+|---|---|
+| Offline Menu | Staff tap items (round category icons, square item cards) and place an order |
+| My Orders | Pick Cash / Online, optional discount, highlighted **Receipt** toggle, confirm payment |
+| Menu Manager | Category boxes; add / edit / delete categories and items (square cards) |
+| Analytics | Revenue for Today, Last 7 days, This month, Last 3 months, Last year, with comparison, cash vs online, top items, sales by category |
+| Printer Connection | Installed (USB) printer or Bluetooth ESC/POS, paper width, copies, test print; **Billing history** below with re-print |
+| User Account | Email, logo, phone, address, GSTIN, FSSAI, receipt footer |
+| Customer Support | Raise a problem; shows your phone/email; replies appear here |
+
+Super Admin: new **Support tickets** inbox (with the client's email, phone, GST) and a
+**support email** field next to the phone number.
+
+GST: enter the GSTIN in User Account and set the tax lines (e.g. CGST 2.5% + SGST 2.5%)
+in the existing Taxes tab. Both print on every receipt. Offline bills carry no platform fee.
+
+Silent printing: with an installed printer the browser still shows its own print dialog.
+Start Chrome/Edge with `--kiosk-printing` and set the thermal printer as default to print with one tap.

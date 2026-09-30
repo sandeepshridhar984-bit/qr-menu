@@ -7,10 +7,10 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const { phone, phonepe_qr_image_url } = await request.json();
+  const { phone, phonepe_qr_image_url, email } = await request.json();
   db.prepare(
-    `UPDATE platform_contact SET phone = ?, phonepe_qr_image_url = ?, updated_at = datetime('now') WHERE id = 1`
-  ).run(phone || "", phonepe_qr_image_url || "");
+    `UPDATE platform_contact SET phone = ?, phonepe_qr_image_url = ?, email = ?, updated_at = datetime('now') WHERE id = 1`
+  ).run(phone || "", phonepe_qr_image_url || "", (email || "").toString().trim().slice(0, 120));
   const contact = db.prepare("SELECT * FROM platform_contact WHERE id = 1").get();
   return NextResponse.json({ contact });
 }

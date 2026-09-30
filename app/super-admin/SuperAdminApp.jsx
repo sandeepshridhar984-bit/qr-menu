@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import SupportInbox from "./SupportInbox";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, QrCode, Check, StickyNote } from "lucide-react";
 import { parseDbDate } from "@/lib/clientDates";
@@ -39,7 +40,7 @@ export default function SuperAdminApp({ settings, settingsHistory, restaurants: 
   const [saved, setSaved] = useState(false);
   const [restaurants, setRestaurants] = useState(initialRestaurants);
   const [history, setHistory] = useState(settingsHistory);
-  const [contact, setContact] = useState(initialContact || { phone: "", phonepe_qr_image_url: "" });
+  const [contact, setContact] = useState(initialContact || { phone: "", email: "", phonepe_qr_image_url: "" });
   const [contactSaved, setContactSaved] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [feeBalance, setFeeBalance] = useState(initialFeeBalance || { totalUnsettled: 0, totalSettled: 0, byRestaurant: [] });
@@ -310,6 +311,16 @@ export default function SuperAdminApp({ settings, settingsHistory, restaurants: 
               />
             </div>
             <div>
+              <label className="block text-xs font-semibold text-ink mb-1.5">Your support email</label>
+              <input
+                value={contact.email || ""}
+                onChange={(e) => setContact({ ...contact, email: e.target.value })}
+                placeholder="support@yourcompany.com"
+                className="w-full border border-ink/15 rounded-card px-3.5 py-2.5 text-sm bg-white"
+              />
+              <p className="text-[11px] text-clay mt-1">Phone and email are also shown to clients on their Customer Support page.</p>
+            </div>
+            <div>
               <label className="block text-xs font-semibold text-ink mb-1.5">Your PhonePe / UPI QR code</label>
               <label className="flex items-center gap-3 border border-dashed border-ink/25 rounded-card p-3 cursor-pointer">
                 {contact.phonepe_qr_image_url ? (
@@ -326,6 +337,8 @@ export default function SuperAdminApp({ settings, settingsHistory, restaurants: 
             </button>
           </div>
         </section>
+
+        <SupportInbox />
 
         <section>
           <h2 className="font-display text-lg font-bold text-ink mb-1">Default platform rates</h2>

@@ -7,7 +7,7 @@ export async function GET(request, { params }) {
 
   const orders = db
     .prepare(
-      `SELECT o.*, t.table_number, pf.settled as platform_fee_settled FROM orders o
+      `SELECT o.*, COALESCE(t.table_number, 'Counter') AS table_number, pf.settled as platform_fee_settled FROM orders o
        LEFT JOIN tables t ON t.id = o.table_id
        LEFT JOIN platform_fees pf ON pf.order_id = o.id
        WHERE o.restaurant_id = ? ORDER BY o.created_at DESC LIMIT 100`
